@@ -1,0 +1,55 @@
+# ═══════════════════════════════════════════════════════════
+#     REMPLACEMENTS DES NOMS DE PAYS - UbuPlugin v2.0.0
+# ═══════════════════════════════════════════════════════════
+#
+# Ce fichier permet de personnaliser les noms de pays affichés
+# par la commande /country.
+#
+# Format: nom_original: nom_personnalisé
+#
+# Les noms sont insensibles à la casse (France = france = FRANCE)
+# Vous pouvez utiliser les codes couleur MiniMessage
+#
+# Exemples de codes couleur MiniMessage:
+#   <red>Texte</red>           - Rouge
+#   <gold>Texte</gold>          - Or
+#   <green>Texte</green>        - Vert
+#   <aqua>Texte</aqua>          - Cyan
+#   <bold>Texte</bold>          - Gras
+#   <gradient:red:blue>X</gradient> - Gradient
+#
+# ═══════════════════════════════════════════════════════════
+
+# Exemples de remplacements
+france: "<blue>France</blue> <white>⚜</white>"
+united states: "<red>USA</red> <white>🦅</white>"
+japan: "<white>Japan</white> <red>🗾</red>"
+united kingdom: "<red>UK</red> <white>👑</white>"
+germany: "<yellow>Allemagne</yellow>"
+spain: "<red>Espagne</red>"
+italy: "<green>Italie</green>"
+canada: "<red>Canada</red> <white>🍁</white>"
+brazil: "<green>Brésil</green>"
+china: "<red>Chine</red>"
+russia: "<blue>Russie</blue>"
+australia: "<yellow>Australie</yellow>"
+mexico: "<green>Mexique</green>"
+netherlands: "<blue>Pays-Bas</blue>"
+belgium: "<yellow>Belgique</yellow>"
+switzerland: "<red>Suisse</red>"
+sweden: "<blue>Suède</blue>"
+norway: "<blue>Norvège</blue>"
+denmark: "<red>Danemark</red>"
+poland: "<red>Pologne</red>"
+portugal: "<green>Portugal</green>"
+greece: "<blue>Grèce</blue>"
+austria: "<red>Autriche</red>"
+czech republic: "<blue>République Tchèque</blue>"
+ireland: "<green>Irlande</green>"
+south korea: "<blue>Corée du Sud</blue>"
+india: "<gold>Inde</gold>"
+argentina: "<aqua>Argentine</aqua>"
+turkey: "<red>Turquie</red>"
+
+# Ajoutez vos propres remplacements ci-dessous:
+# nom_pays: "Nom Personnalisé"

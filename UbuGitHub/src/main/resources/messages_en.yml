@@ -1,0 +1,183 @@
+# ═══════════════════════════════════════════════════════════
+#           ENGLISH TRANSLATIONS - UbuPlugin v2.0.0
+# ═══════════════════════════════════════════════════════════
+
+# Special symbols
+symbols:
+  france: "⓪"
+  uk: "ⓧ"
+  success: "✓"
+  error: "✗"
+  warning: "⚠"
+  info: "ⓘ"
+
+# General messages
+general:
+  prefix: "<gold>[UbuPlugin]</gold>"
+  loading: "<yellow>Loading...</yellow>"
+  success: "<green>✓ Operation successful!</green>"
+  error: "<red>✗ An error occurred</red>"
+  no-permission: "<red>You don't have permission to perform this action!</red>"
+  player-only: "<red>This command can only be executed by a player!</red>"
+  console-only: "<red>This command can only be executed from console!</red>"
+  invalid-args: "<red>Invalid arguments! Use /ubu help</red>"
+  player-not-found: "<red>Player not found: {0}</red>"
+  cooldown: "<red>You must wait {0} seconds before using this again</red>"
+
+# Commands
+commands:
+  unknown: "<red>Unknown command: {0}</red>"
+  reload:
+    start: "<yellow>Reloading plugin...</yellow>"
+    success: "<green>✓ Plugin reloaded successfully! ({0}ms)</green>"
+    error: "<red>✗ Error while reloading</red>"
+
+# Module: Enchantments
+enchants:
+  timber:
+    name: "Timber"
+    description: "Breaks all connected logs"
+    activated: "<green>✓ Timber activated!</green>"
+    cooldown: "<red>Timber on cooldown! Wait {0}s</red>"
+    given: "<green>Timber enchanted book given to {0}!</green>"
+    received: "<green>You received a Timber enchanted book!</green>"
+  
+  magnetic:
+    name: "Magnetic"
+    description: "Items directly retrieved"
+    enabled: "<green>✓ Magnetic enabled</green>"
+    disabled: "<gray>○ Magnetic disabled</gray>"
+    toggle: "<yellow>Shift + Right Click to toggle</yellow>"
+    given: "<green>Magnetic enchanted book given to {0}!</green>"
+    received: "<green>You received a Magnetic enchanted book!</green>"
+  
+  experience:
+    name: "Experience"
+    description: "+{0}% experience"
+    given: "<green>Experience enchanted book given to {0}!</green>"
+    received: "<green>You received an Experience enchanted book!</green>"
+  
+  explosive:
+    name: "Explosive"
+    description: "Breaks in 3x3"
+    given: "<green>Explosive enchanted book given to {0}!</green>"
+    received: "<green>You received an Explosive enchanted book!</green>"
+  
+  dash:
+    name: "Dash"
+    description: "Double-sneak to dash"
+    cooldown: "<red>Dash on cooldown! ({0}s)</red>"
+    given: "<green>Dash {0} enchanted book given to {1}!</green>"
+    received: "<green>You received a Dash {0} enchanted book!</green>"
+  
+  soulbound:
+    name: "Soulbound"
+    description: "Keep item after death"
+    given: "<green>Soulbound enchanted book given to {0}!</green>"
+    received: "<green>You received a Soulbound enchanted book!</green>"
+  
+  autorepair:
+    name: "Auto-Repair"
+    description: "Automatically repairs item"
+    given: "<green>Auto-Repair {0} enchanted book given to {1}!</green>"
+    received: "<green>You received an Auto-Repair {0} enchanted book!</green>"
+  
+  beaconator:
+    name: "Beaconator"
+    description: "Extends beacon range"
+    given: "<green>Beaconator {0} enchanted book given to {1}!</green>"
+    received: "<green>You received a Beaconator {0} enchanted book!</green>"
+  
+  errors:
+    not-loaded: "<red>Error: {0} enchantment is not loaded!</red>"
+    datapack-missing: "<red>Check that the datapack is properly installed.</red>"
+    invalid-level: "<red>Level must be between {0} and {1}!</red>"
+
+# Module: Ranks
+ranks:
+  set:
+    success: "<green>{0}'s rank set to {1}!</green>"
+    received: "<green>Your rank has been set to {0}!</green>"
+    invalid: "<red>Invalid rank! Available ranks: {0}</red>"
+  
+  prefix:
+    set: "<green>{0}'s prefix set!</green>"
+    received: "<green>Your prefix has been modified!</green>"
+  
+  mute:
+    muted: "<red>You have been muted {0}</red>"
+    unmuted: "<green>You have been unmuted!</green>"
+    reason: "<gray>Reason: {0}</gray>"
+    expires: "<gray>Expires in: {0}</gray>"
+    permanent: "<gray>Duration: Permanent</gray>"
+    already-muted: "<red>This player is already muted!</red>"
+    not-muted: "<red>This player is not muted!</red>"
+    success: "<green>{0} has been muted!</green>"
+    unmute-success: "<green>{0} has been unmuted!</green>"
+    cannot-chat: "<red>You cannot chat because you are muted!</red>"
+
+# Module: Earth Tools
+earthtools:
+  gps:
+    to-minecraft: "<green>Minecraft Coordinates:</green> <white>X = {0}, Z = {1}</white>"
+    to-gps: "<green>GPS Coordinates:</green> <white>Lat = {0}, Lon = {1}</white>"
+    invalid-coords: "<red>Invalid GPS coordinates!</red>"
+    usage: "<red>Usage: /gps tominecraft <latitude> <longitude> OR /gps togps <x> <z></red>"
+  
+  country:
+    searching: "<gray>Searching for country...</gray>"
+    found: "<green>You are in:</green> <white>{0}</white>"
+    not-found: "<yellow>No country found at this position (ocean/undefined territory)</yellow>"
+    out-of-bounds: "<red>You are outside the map limits!</red>"
+    error: "<red>Error while searching for country!</red>"
+    api-unavailable: "<gray>The geolocation API may be temporarily unavailable.</gray>"
+    coords: "<gray>(GPS: {0}, {1})</gray>"
+    cached: "<dark_gray>[cached]</dark_gray>"
+  
+  tpr:
+    searching: "<gray>Searching for a safe location...</gray>"
+    success: "<green>Teleport successful!</green>"
+    coords: "<gray>X: {0}, Y: {1}, Z: {2}</gray>"
+    failed: "<red>Could not find safe location, try again</red>"
+    cooldown: "<red>Please wait {0} seconds</red>"
+    world-not-allowed: "<red>This command only works in Overworld and Nether</red>"
+    hint: "<gray>Hint: Protected areas are avoided</gray>"
+  
+  uptime:
+    total: "<green>Total playtime of</green> <yellow>{0}</yellow> <green>:</green> <aqua>{1}</aqua>"
+    loading: "<yellow>Loading leaderboard...</yellow>"
+    header: "<gold><bold>Playtime Leaderboard</bold></gold>"
+    players: "<dark_gray>({0} players)</dark_gray>"
+    rank-entry: "{0}#{1}</gold> <white>{2}</white> <gray>-</gray> <aqua>{3}</aqua>"
+  
+  countrylist:
+    not-found: "<red>No country list found</red>"
+    read-error: "<red>Error reading file</red>"
+    set-success: "<green>Country list updated!</green>"
+    lines-written: "<gray>{0} lines written</gray>"
+    usage: "<red>Usage: /setcountrylist <text></red>"
+    hint: "<gray>Use \\n to create a new line</gray>"
+    example: "<gray>Example: /setcountrylist France\\n-Admin\\nJapan\\n-Player</gray>"
+    too-long: "<red>Text is too long! (max 10000 characters)</red>"
+    forbidden-chars: "<red>Forbidden characters detected!</red>"
+
+# Module: Lobby Chat
+lobbychat:
+  teleport: "<green>Teleporting to lobby!</green>"
+  world-not-found: "<red>World 'world' doesn't exist!</red>"
+  config-reloaded: "<green>Chat configuration reloaded!</green>"
+
+# Module: Anvil
+anvil:
+  high-cost-warning: "<yellow>Warning: This repair costs <red>{0}</red> levels!</yellow>"
+  no-limit: "<green>No more \"Too Expensive\" limit!</green>"
+
+# Errors
+errors:
+  no-permission: "<red>You don't have permission to perform this action!</red>"
+  player-only: "<red>This command can only be executed by a player!</red>"
+  op-only: "<red>You must be OP to use this command</red>"
+  invalid-number: "<red>Please enter a valid number!</red>"
+  positive-number: "<red>Please enter a positive number!</red>"
+  database-error: "<red>Database error! Check logs.</red>"
+  unknown-error: "<red>An unknown error occurred</red>"
