@@ -1,0 +1,426 @@
+# ═══════════════════════════════════════════════════════════
+#           CONFIGURATION UBUPLUGIN v2.0.0
+#           Par Tannoxx - https://ubuearth.fr
+# ═══════════════════════════════════════════════════════════
+
+# ===== PARAMÈTRES GÉNÉRAUX =====
+general:
+  # Langue par défaut (en, fr)
+  default-language: fr
+
+  # Détecter automatiquement la langue du client
+  auto-detect-language: true
+
+  # Préfixe des messages du plugin
+  prefix: "&8[&6UbuPlugin&8]&r"
+
+  # Debug mode (logs détaillés)
+  debug: false
+
+  # Vérifier les mises à jour au démarrage
+  check-updates: true
+
+# ===== BASE DE DONNÉES =====
+database:
+  # Type: SQLITE, MYSQL (actuellement seul SQLite est supporté)
+  type: SQLITE
+
+  # Nom du fichier SQLite
+  file: ubuplugin.db
+
+  # Pool de connexions
+  pool:
+    # Taille minimale du pool
+    minimum-idle: 2
+
+    # Taille maximale du pool
+    maximum-pool-size: 10
+
+    # Timeout de connexion (millisecondes)
+    connection-timeout: 5000
+
+    # Durée de vie maximale d'une connexion (millisecondes)
+    max-lifetime: 1800000
+
+  # Migration automatique depuis YAML
+  migration:
+    # Activer la migration automatique
+    enabled: true
+
+    # Créer un backup avant migration
+    backup: true
+
+    # Supprimer les anciens fichiers YAML après migration réussie
+    delete-old-files: false
+
+# ===== CACHE =====
+cache:
+  # Durée de vie par défaut des entrées (secondes)
+  default-ttl: 300
+
+  # Taille maximale du cache
+  maximum-size: 1000
+
+  # Configuration spécifique par type
+  types:
+    player-ranks:
+      ttl: 600
+      size: 500
+    country-data:
+      ttl: 300
+      size: 1000
+    enchantment-cooldowns:
+      ttl: 60
+      size: 200
+
+# ===== MODULES =====
+modules:
+  # Activer/désactiver chaque module
+  enabled:
+    enchants: true
+    ranks: true
+    earthtools: true
+    lobbychat: true
+    antiafk: true
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: ENCHANTEMENTS
+# ═══════════════════════════════════════════════════════════
+enchants:
+  # Configuration globale des enchantements
+  global:
+    # Particules lors de l'activation
+    particles: true
+
+    # Sons lors de l'activation
+    sounds: true
+
+    # Messages de feedback
+    feedback: true
+
+  # Timber (Bûcheron Fou)
+  timber:
+    enabled: true
+
+    # Limite de blocs cassables
+    max-blocks: 150
+
+    # Cooldown entre utilisations (secondes)
+    cooldown: 3
+
+    # Blocs compatibles (logs uniquement)
+    whitelist-mode: true
+
+  # Magnetic (Magnétique)
+  magnetic:
+    enabled: true
+
+    # Toggle avec Shift + Clic Droit
+    toggle-enabled: true
+
+    # Rayon d'attraction (blocs)
+    attraction-radius: 5
+
+    # Fenêtre de collection pour blocs en chaîne (millisecondes)
+    collection-window: 5000
+
+  # Experience (Bonus XP)
+  experience:
+    enabled: true
+
+    # Bonus par niveau (25% = 0.25)
+    bonus-per-level: 0.25
+
+    # Nombre maximum de niveaux
+    max-level: 3
+
+  # Explosive (Minage 3x3)
+  explosive:
+    enabled: true
+
+    # Compatible avec Fortune
+    fortune-compatible: true
+
+    # Compatible avec Silk Touch
+    silk-touch-compatible: true
+
+    # Récupérer l'XP de tous les blocs
+    collect-all-xp: true
+
+    # Désactiver avec Shift
+    disable-on-sneak: true
+
+  # Veinminer (Minage filons)
+  veinminer:
+    enabled: true
+
+    # Désactiver avec Shift
+    disable-on-sneak: true
+
+    # Limite de blocs cassables
+    max-blocks: 150
+
+    # Cooldown entre utilisations (secondes)
+    cooldown: 1
+
+
+  # Dash (Propulsion)
+  dash:
+    enabled: true
+
+    # Cooldown par niveau (secondes)
+    cooldown:
+      level-1: 10
+      level-2: 5
+
+    # Vitesse de propulsion
+    speed:
+      level-1: 1.5
+      level-2: 2.0
+
+    # Fenêtre pour double-sneak (millisecondes)
+    double-sneak-window: 300
+
+  # Soulbound (Lié à l'âme)
+  soulbound:
+    enabled: true
+
+    # Délai avant retour des items (ticks)
+    return-delay: 2
+
+  # Auto-Repair (Réparation Auto)
+  auto-repair:
+    enabled: true
+
+    # Intervalle de réparation (secondes)
+    repair-interval: 10
+
+    # Points de durabilité réparés par intervalle
+    repair-amount: 5
+
+    # Fonctionne dans l'inventaire (pas seulement équipé)
+    work-in-inventory: true
+
+  # Beaconator (Extension Beacon)
+  beaconator:
+    enabled: true
+
+    # Bonus de portée par niveau (blocs)
+    range-bonus:
+      level-1: 20
+      level-2: 60
+      level-3: 100
+      level-4: 140
+
+    # Niveau 4 augmente les effets de +1
+    level-4-boost: true
+
+    # Intervalle de vérification (secondes)
+    check-interval: 5
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: SYSTÈME DE RANKS
+# ═══════════════════════════════════════════════════════════
+ranks:
+  # Configuration du TAB
+  tab:
+    # Header du TAB (MiniMessage format)
+    header: |
+      <gradient:red:gold>━━━━━━━━━━━━━━━━━━━━━━━━</gradient>
+      <yellow><bold>UBUEARTH SMP</bold></yellow>
+      <gradient:red:gold>━━━━━━━━━━━━━━━━━━━━━━━━</gradient>
+
+    # Footer du TAB (MiniMessage format)
+    footer: |
+      <gradient:aqua:blue>━━━━━━━━━━━━━━━━━━━━━━━━</gradient>
+      <gray>Joueurs en ligne: <white><players></white></gray>
+      <gray>play.ubuearth.fr</gray>
+      <gradient:aqua:blue>━━━━━━━━━━━━━━━━━━━━━━━━</gradient>
+
+    # Mettre à jour le TAB toutes les X secondes
+    update-interval: 60
+
+  # Définition des ranks
+  list:
+    ADMIN:
+      # Suffix affiché après le nom
+      suffix: "<dark_red><bold>[ADMIN]</bold></dark_red>"
+
+      # Priorité (plus élevé = plus haut dans le TAB)
+      priority: 100
+
+      # Permissions Bukkit associées (optionnel)
+      permissions: []
+
+    MOD:
+      suffix: "<red><bold>[MOD]</bold></red>"
+      priority: 80
+      permissions: []
+
+    HELPER:
+      suffix: "<green><bold>[HELPER]</bold></green>"
+      priority: 70
+      permissions: []
+
+    STAR:
+      suffix: "<yellow>⭐</yellow>"
+      priority: 60
+      permissions: []
+
+    VIP:
+      suffix: "<gold><bold>[VIP]</bold></gold>"
+      priority: 40
+      permissions: []
+
+    JOUEUR:
+      suffix: ""
+      priority: 0
+      permissions: []
+
+  # Système de mute
+  mute:
+    # Activer le système de mute
+    enabled: true
+
+    # Durée par défaut (minutes, 0 = permanent)
+    default-duration: 0
+
+    # Raisons pré-définies
+    reasons:
+      - "Spam"
+      - "Langage inapproprié"
+      - "Publicité"
+      - "Harcèlement"
+      - "Autre"
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: EARTH TOOLS
+# ═══════════════════════════════════════════════════════════
+earthtools:
+  # GPS (Conversion coordonnées)
+  gps:
+    enabled: true
+
+    # Constantes de conversion
+    latitude-to-z: -136.653
+    longitude-to-x: 136.653
+
+  # Country (Détection pays)
+  country:
+    enabled: true
+
+    # APIs de géolocalisation (ordre de priorité)
+    apis:
+      - nominatim
+      - bigdatacloud
+
+    # Cache
+    cache:
+      # Durée pour succès (secondes)
+      success-duration: 300
+
+      # Durée pour erreurs (secondes)
+      error-duration: 60
+
+      # Précision du cache (degrés)
+      precision: 0.01
+
+    # Intervalle de nettoyage du cache (secondes)
+    cleanup-interval: 600
+
+  # TPR (Téléportation Aléatoire)
+  tpr:
+    enabled: true
+
+    # Limites de la carte (coordonnées)
+    max-x: 24597
+    max-z: 12298
+
+    # Cooldown entre téléportations (secondes)
+    cooldown: 60
+
+    # Nombre maximum de tentatives
+    max-attempts: 50
+
+    # Vérification Towny (éviter zones protégées)
+    check-towny: true
+
+    # Mondes autorisés
+    allowed-worlds:
+      - world
+      - world_nether
+
+  # Uptime (Temps de jeu)
+  uptime:
+    enabled: true
+
+    # Afficher le leaderboard
+    leaderboard-enabled: true
+
+    # Nombre de joueurs dans le leaderboard
+    leaderboard-size: 50
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: LOBBY CHAT
+# ═══════════════════════════════════════════════════════════
+lobbychat:
+  # Téléportation au lobby
+  lobby:
+    enabled: true
+
+    # Monde du lobby
+    world: world
+
+    # Coordonnées spécifiques (laisser vide pour spawn du monde)
+    location:
+      x: 0
+      y: 0
+      z: 0
+      yaw: 0
+      pitch: 0
+
+    # Utiliser le spawn du monde si location non définie
+    use-world-spawn: true
+
+  # Remplacements de chat
+  chat-replacements:
+    enabled: true
+
+    # Liste des remplacements
+    replacements:
+      ":truc:": "ŭ"
+      ":coeur:": "❤"
+      ":heart:": "❤"
+      ":etoile:": "★"
+      ":star:": "★"
+      ":check:": "✓"
+      ":fleche:": "→"
+      ":arrow:": "→"
+      ":skull:": "☠"
+      ":music:": "♪"
+      ":diamond:": "◆"
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: ANTI-AFK
+# ═══════════════════════════════════════════════════════════
+antiafk:
+  # Activer le système anti-AFK
+  enabled: true
+
+  # Temps avant kick (secondes)
+  afk-time: 300
+
+  # Temps avant avertissement (secondes)
+  warn-time: 270
+
+  # Intervalle de vérification (secondes)
+  check-interval: 20
+
+  # Notifier les admins lors d'un kick
+  notify-admins: true
+
+# ═══════════════════════════════════════════════════════════
+#                    REMPLACEMENTS DE PAYS
+# ═══════════════════════════════════════════════════════════
+# Cette section est gérée par country_replacements.yml
+# mais peut être consultée ici pour référence
