@@ -598,7 +598,7 @@ database:
 
 Pour toute question ou problème :
 
-- 🌐 **Web map** : [http://ubuearth.fr/8080](http://ubuearth.fr:8080)
+- 🌐 **Web map** : [http://play.ubuearth.fr](http://play.ubuearth.fr:8080)
 - 💬 **Discord** : [Rejoindre le serveur](https://discord.gg/GuwgpBk2MX)
 - 📧 **Serveur** : `play.ubuearth.fr`
 
