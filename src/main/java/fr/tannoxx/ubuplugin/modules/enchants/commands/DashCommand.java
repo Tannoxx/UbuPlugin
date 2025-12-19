@@ -25,7 +25,10 @@ public record DashCommand(EnchantsModule module) implements CommandExecutor, Tab
 
         if (args.length < 2 || !args[0].equalsIgnoreCase("give")) {
             sender.sendMessage("§cUsage: /dash give <joueur> [niveau]");
-            sender.sendMessage("§7Niveaux disponibles: 1-2");
+            sender.sendMessage("§7Niveaux disponibles: 1-3");
+            sender.sendMessage("§7Niveau 1: Dash basique (cooldown 10s)");
+            sender.sendMessage("§7Niveau 2: Dash rapide (cooldown 5s)");
+            sender.sendMessage("§7Niveau 3: Dash invulnérable (cooldown 3s)");
             return true;
         }
 
@@ -40,8 +43,8 @@ public record DashCommand(EnchantsModule module) implements CommandExecutor, Tab
         if (args.length >= 3) {
             try {
                 level = Integer.parseInt(args[2]);
-                if (level < 1 || level > 2) {
-                    module.getTranslationManager().send(sender, "enchants.errors.invalid-level", "1", "2");
+                if (level < 1 || level > 3) {
+                    module.getTranslationManager().send(sender, "enchants.errors.invalid-level", "1", "3");
                     return true;
                 }
             } catch (NumberFormatException e) {
@@ -80,6 +83,7 @@ public record DashCommand(EnchantsModule module) implements CommandExecutor, Tab
         } else if (args.length == 3 && args[0].equalsIgnoreCase("give")) {
             completions.add("1");
             completions.add("2");
+            completions.add("3");
         }
         return completions;
     }

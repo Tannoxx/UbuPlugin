@@ -172,14 +172,19 @@ enchants:
     cooldown:
       level-1: 10
       level-2: 5
+      level-3: 3
 
     # Vitesse de propulsion
     speed:
       level-1: 1.5
       level-2: 2.0
+      level-3: 2.5
 
     # Fenêtre pour double-sneak (millisecondes)
     double-sneak-window: 300
+
+    # Durée d'invulnérabilité niveau 3 (ticks) - 30 ticks = 1.5 secondes
+    invulnerability-duration: 30
 
   # Soulbound (Lié à l'âme)
   soulbound:
