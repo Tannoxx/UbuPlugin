@@ -1,0 +1,240 @@
+name: UbuPlugin
+version: ${project.version}
+main: fr.tannoxx.ubuplugin.UbuPlugin
+api-version: '1.21'
+author: Tannoxx
+website: https://ubuearth.fr
+description: Plugin professionnel pour UbuEarth SMP avec enchantements customs, système de ranks et outils Earth
+load: POSTWORLD
+softdepend: [Towny]
+
+commands:
+  # Commande principale
+  ubu:
+    description: Commande principale du plugin
+    usage: /ubu <help|reload|modules>
+    aliases: [ubuplugin]
+    permission: ubuplugin.command.main
+
+  # Module: Enchantements
+  timber:
+    description: Donne un livre enchanté Timber
+    usage: /timber give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  magnetic:
+    description: Donne un livre enchanté Magnetic
+    usage: /magnetic give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  experience:
+    description: Donne un livre enchanté Experience
+    usage: /experience give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  explosive:
+    description: Donne un livre enchanté Explosive
+    usage: /explosive give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  dash:
+    description: Donne un livre enchanté Dash
+    usage: /dash give <joueur> [niveau]
+    permission: ubuplugin.enchants.admin
+
+  soulbound:
+    description: Donne un livre enchanté Soulbound
+    usage: /soulbound give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  autorepair:
+    description: Donne un livre enchanté Auto-Repair
+    usage: /autorepair give <joueur> [niveau]
+    permission: ubuplugin.enchants.admin
+
+  beaconator:
+    description: Donne un livre enchanté Beaconator
+    usage: /beaconator give <joueur> [niveau]
+    permission: ubuplugin.enchants.admin
+
+  veinminer:
+    description: Donne un livre enchanté Veinminer
+    usage: /veinminer give <joueur>
+    permission: ubuplugin.enchants.admin
+
+  # ✅ AJOUTÉ: Commande /toggle
+  toggle:
+    description: Active/désactive un enchantement
+    usage: /toggle <timber|magnetic|excavator|veinminer>
+    permission: ubuplugin.enchants.toggle
+
+  # Module: Ranks
+  rank:
+    description: Définir le rank d'un joueur
+    usage: /rank <joueur> <rank>
+    permission: ubuplugin.admin
+
+  prefix:
+    description: Définir le prefix d'un joueur
+    usage: /prefix <joueur> <texte>
+    permission: ubuplugin.admin
+
+  mute:
+    description: Mute un joueur
+    usage: /mute <joueur> [durée] [raison]
+    permission: ubuplugin.admin
+
+  unmute:
+    description: Unmute un joueur
+    usage: /unmute <joueur>
+    permission: ubuplugin.admin
+
+  # Module: Earth Tools
+  gps:
+    description: Conversion coordonnées GPS ↔ Minecraft
+    usage: /gps <tominecraft|togps> <coords>
+    permission: ubuplugin.earthtools.gps
+
+  country:
+    description: Affiche le pays actuel
+    usage: /country
+    permission: ubuplugin.earthtools.country
+
+  tpr:
+    description: Téléportation aléatoire
+    usage: /tpr
+    permission: ubuplugin.earthtools.tpr
+
+  uptime:
+    description: Affiche le temps de jeu
+    usage: /uptime <joueur|leaderboard>
+    permission: ubuplugin.earthtools.uptime
+
+  countrylist:
+    description: Affiche la liste des pays
+    usage: /countrylist
+    permission: ubuplugin.earthtools.countrylist
+
+  setcountrylist:
+    description: Modifie la liste des pays
+    usage: /setcountrylist <texte>
+    permission: ubuplugin.admin
+
+  # Module: Lobby Chat
+  lobby:
+    description: Retour au spawn
+    usage: /lobby
+    aliases: [hub]
+    permission: ubuplugin.lobbychat.use
+
+  hub:
+    description: Retour au spawn
+    usage: /hub
+    permission: ubuplugin.lobbychat.use
+
+permissions:
+  ubuplugin.*:
+    description: Toutes les permissions du plugin
+    default: op
+    children:
+      ubuplugin.command.*: true
+      ubuplugin.module.*: true
+      ubuplugin.enchants.*: true
+      ubuplugin.earthtools.*: true
+      ubuplugin.lobbychat.*: true
+      ubuplugin.admin: true
+
+  ubuplugin.command.*:
+    description: Toutes les commandes
+    default: op
+    children:
+      ubuplugin.command.main: true
+      ubuplugin.command.reload: true
+      ubuplugin.command.help: true
+
+  ubuplugin.command.main:
+    description: Utiliser la commande principale
+    default: true
+
+  ubuplugin.command.reload:
+    description: Recharger la configuration
+    default: op
+
+  ubuplugin.command.help:
+    description: Afficher l'aide
+    default: true
+
+  ubuplugin.enchants.*:
+    description: Toutes les permissions enchantements
+    default: op
+    children:
+      ubuplugin.enchants.admin: true
+      ubuplugin.enchants.use: true
+      ubuplugin.enchants.toggle: true
+
+  ubuplugin.enchants.admin:
+    description: Gérer les enchantements customs
+    default: op
+
+  ubuplugin.enchants.use:
+    description: Utiliser les enchantements customs
+    default: true
+
+  # ✅ AJOUTÉ: Permission pour /toggle
+  ubuplugin.enchants.toggle:
+    description: Utiliser /toggle pour activer/désactiver les enchantements
+    default: true
+
+  ubuplugin.earthtools.*:
+    description: Toutes les permissions Earth Tools
+    default: true
+    children:
+      ubuplugin.earthtools.gps: true
+      ubuplugin.earthtools.country: true
+      ubuplugin.earthtools.tpr: true
+      ubuplugin.earthtools.uptime: true
+      ubuplugin.earthtools.countrylist: true
+
+  ubuplugin.earthtools.gps:
+    description: Utiliser la commande GPS
+    default: true
+
+  ubuplugin.earthtools.country:
+    description: Utiliser la commande Country
+    default: true
+
+  ubuplugin.earthtools.tpr:
+    description: Utiliser la téléportation aléatoire
+    default: true
+
+  ubuplugin.earthtools.uptime:
+    description: Voir les temps de jeu
+    default: true
+
+  ubuplugin.earthtools.countrylist:
+    description: Voir la liste des pays
+    default: true
+
+  ubuplugin.lobbychat.*:
+    description: Toutes les permissions Lobby Chat
+    default: true
+    children:
+      ubuplugin.lobbychat.use: true
+
+  ubuplugin.lobbychat.use:
+    description: Utiliser /lobby et /hub
+    default: true
+
+  ubuplugin.module.*:
+    description: Accès à tous les modules
+    default: op
+    children:
+      ubuplugin.module.enchants: true
+      ubuplugin.module.ranks: true
+      ubuplugin.module.earthtools: true
+      ubuplugin.module.lobbychat: true
+      ubuplugin.module.antiafk: true
+
+  ubuplugin.admin:
+    description: Accès administrateur complet
+    default: op
