@@ -1,5 +1,7 @@
 package fr.tannoxx.ubuplugin.modules.earthtools.commands;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import fr.tannoxx.ubuplugin.modules.earthtools.EarthToolsModule;
@@ -13,6 +15,7 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jspecify.annotations.NonNull;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -24,9 +27,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Commande /country avec implémentation complète des APIs et système de remplacement
+ * <p>
+ * OPTIMISATIONS v2.0.2:
+ * - Rate limiting par joueur (max 5 calls/minute)
+ * - Réduction des appels API redondants
  */
 public record CountryCommand(EarthToolsModule module) implements CommandExecutor {
 
@@ -34,11 +44,27 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
     private static final double LONGITUDE_TO_X = 136.653;
     private static final int TIMEOUT = 5000;
 
+    // ✅ OPTIMISATION: Rate limiter par joueur
+    private static final Cache<UUID, AtomicInteger> API_RATE_LIMITER = Caffeine.newBuilder()
+            .expireAfterWrite(1, TimeUnit.MINUTES)
+            .build();
+
+    private static final int MAX_API_CALLS_PER_MINUTE = 5;
+
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, String[] args) {
+                             @NotNull String label, String @NonNull [] args) {
         if (!(sender instanceof Player player)) {
             module.getTranslationManager().send(sender, "errors.player-only");
+            return true;
+        }
+
+        // ✅ OPTIMISATION: Vérifier rate limit
+        UUID uuid = player.getUniqueId();
+        if (!canCallAPI(uuid)) {
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit");
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-info");
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-wait");
             return true;
         }
 
@@ -46,17 +72,14 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
         double x = loc.getX();
         double z = loc.getZ();
 
-        // Convertir en GPS
         double latitude = z / LATITUDE_TO_Z;
         double longitude = x / LONGITUDE_TO_X;
 
-        // Vérifier limites
         if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
             module.getTranslationManager().send(sender, "earthtools.country.out-of-bounds");
             return true;
         }
 
-        // Vérifier le cache
         String cacheKey = getCacheKey(latitude, longitude);
         EarthToolsModule.CountryCacheEntry cached = module.getCountryCache().getIfPresent(cacheKey);
 
@@ -65,23 +88,19 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
             return true;
         }
 
-        // Rechercher de manière asynchrone
         module.getTranslationManager().send(sender, "earthtools.country.searching");
 
         module.plugin.getServer().getScheduler().runTaskAsynchronously(module.plugin, () -> {
             String countryName = fetchCountryName(latitude, longitude);
 
-            // Appliquer les remplacements de pays
             if (countryName != null && !countryName.isEmpty()) {
                 countryName = applyCountryReplacement(countryName);
             }
 
-            // Mettre en cache
             boolean isError = countryName == null || countryName.isEmpty();
             module.getCountryCache().put(cacheKey,
                     new EarthToolsModule.CountryCacheEntry(countryName, isError));
 
-            // Retour au thread principal
             String finalCountryName = countryName;
             module.plugin.getServer().getScheduler().runTask(module.plugin, () ->
                     sendResult(sender, finalCountryName, latitude, longitude, false)
@@ -91,12 +110,19 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
         return true;
     }
 
+    /**
+     * ✅ OPTIMISATION: Rate limiting par joueur
+     */
+    private boolean canCallAPI(@NotNull UUID uuid) {
+        AtomicInteger counter = API_RATE_LIMITER.get(uuid, k -> new AtomicInteger(0));
+        return counter.incrementAndGet() <= MAX_API_CALLS_PER_MINUTE;
+    }
+
     private void sendResult(@NotNull CommandSender sender, @Nullable String countryName,
                             double lat, double lon, boolean cached) {
         if (countryName != null && !countryName.isEmpty()) {
             module.getTranslationManager().send(sender, "earthtools.country.found", countryName);
 
-            // Utiliser sendPrefixed ou send pour parser MiniMessage
             String coords = String.format(Locale.US, "%.4f", lat) + ", " + String.format(Locale.US, "%.4f", lon);
             if (cached) {
                 sender.sendMessage(module.getTranslationManager().getComponent(sender, "earthtools.country.coords", coords)
@@ -112,11 +138,9 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
     @Nullable
     private String fetchCountryName(double latitude, double longitude) {
         try {
-            // Utiliser Nominatim en premier
             String result = fetchFromNominatim(latitude, longitude);
             if (result != null) return result;
 
-            // Fallback BigDataCloud
             return fetchFromBigDataCloud(latitude, longitude);
         } catch (Exception e) {
             module.error("Erreur API géolocalisation", e);
@@ -205,22 +229,15 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
         return String.format(Locale.US, "%.2f,%.2f", roundedLat, roundedLon);
     }
 
-    /**
-     * Applique les remplacements de pays définis dans la configuration
-     */
     private String applyCountryReplacement(String countryName) {
         Map<String, String> replacements = loadCountryReplacements();
         return replacements.getOrDefault(countryName, countryName);
     }
 
-    /**
-     * Charge les remplacements de pays depuis le fichier de configuration
-     */
     private Map<String, String> loadCountryReplacements() {
         Map<String, String> replacements = new HashMap<>();
         File replacementsFile = new File(module.plugin.getDataFolder(), "country_replacements.yml");
 
-        // Créer le fichier avec des valeurs par défaut s'il n'existe pas
         if (!replacementsFile.exists()) {
             createDefaultReplacementsFile(replacementsFile);
         }
@@ -245,9 +262,6 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
         return replacements;
     }
 
-    /**
-     * Crée le fichier de configuration par défaut pour les remplacements
-     */
     private void createDefaultReplacementsFile(File file) {
         try {
             File parentDir = file.getParentFile();
@@ -259,7 +273,6 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
             if (file.createNewFile()) {
                 FileConfiguration config = YamlConfiguration.loadConfiguration(file);
 
-                // Exemples de remplacements par défaut
                 config.set("replacements.Israel", "Palestine");
                 config.set("replacements.People's Republic of China", "Taiwan");
                 config.set("replacements.Western Sahara", "Western Sahara");

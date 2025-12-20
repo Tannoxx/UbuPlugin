@@ -9,6 +9,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,7 +22,7 @@ public record TimberCommand(EnchantsModule module) implements CommandExecutor, T
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, @NotNull String[] args) {
+                             @NotNull String label, @NotNull String @NonNull [] args) {
         if (!sender.hasPermission("ubuplugin.enchants.admin")) {
             module.getTranslationManager().sendPrefixed(sender, "errors.no-permission");
             return true;
@@ -60,7 +61,7 @@ public record TimberCommand(EnchantsModule module) implements CommandExecutor, T
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                      @NotNull String label, @NotNull String[] args) {
+                                      @NotNull String label, @NotNull String @NonNull [] args) {
         List<String> completions = new ArrayList<>();
         if (args.length == 1) {
             completions.add("give");

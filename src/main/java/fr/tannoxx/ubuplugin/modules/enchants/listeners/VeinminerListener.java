@@ -21,39 +21,41 @@ import java.util.concurrent.ThreadLocalRandom;
  * Listener pour l'enchantement Veinminer
  * Mine automatiquement tous les minerais connectés du même type
  * Thread-safe avec ThreadLocal
- *
- * Compatibilités:
- * - Fortune: chaque bloc a sa propre chance
- * - Silk Touch: tous les blocs donnent leur forme brute
- * - Experience: XP totale multipliée
- * - Magnetic: items directement dans l'inventaire
+ * <p>
+ * OPTIMISATIONS v2.0.2:
+ * - Utilisation de ArrayDeque au lieu de LinkedList (plus rapide)
+ * - Pré-allocation des collections avec taille estimée
+ * - Offsets précalculés pour éviter recréation
+ * - Protection contre durabilité négative
  *
  * @author Tannoxx
- * @version 2.0.1
+ * @version 2.0.2
  */
 public class VeinminerListener implements Listener {
 
     private final EnchantsModule module;
     private final ThreadLocal<Boolean> processing = ThreadLocal.withInitial(() -> false);
 
-    // Tous les minerais vanilla
+    // ✅ OPTIMISATION: Offsets précalculés (réutilisables, pas de garbage collection)
+    private static final int[][] ADJACENT_OFFSETS = {
+            {-1, 0, 0}, {1, 0, 0}, {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1},
+            {-1, -1, 0}, {-1, 1, 0}, {1, -1, 0}, {1, 1, 0},
+            {-1, 0, -1}, {-1, 0, 1}, {1, 0, -1}, {1, 0, 1},
+            {0, -1, -1}, {0, -1, 1}, {0, 1, -1}, {0, 1, 1},
+            {-1, -1, -1}, {-1, -1, 1}, {-1, 1, -1}, {-1, 1, 1},
+            {1, -1, -1}, {1, -1, 1}, {1, 1, -1}, {1, 1, 1}
+    };
+
     private static final Set<Material> ORE_TYPES = EnumSet.of(
-            // Overworld
             Material.COAL_ORE, Material.IRON_ORE, Material.COPPER_ORE,
             Material.GOLD_ORE, Material.REDSTONE_ORE, Material.LAPIS_ORE,
             Material.DIAMOND_ORE, Material.EMERALD_ORE,
-
-            // Deepslate variants
             Material.DEEPSLATE_COAL_ORE, Material.DEEPSLATE_IRON_ORE,
             Material.DEEPSLATE_COPPER_ORE, Material.DEEPSLATE_GOLD_ORE,
             Material.DEEPSLATE_REDSTONE_ORE, Material.DEEPSLATE_LAPIS_ORE,
             Material.DEEPSLATE_DIAMOND_ORE, Material.DEEPSLATE_EMERALD_ORE,
-
-            // Nether
             Material.NETHER_GOLD_ORE, Material.NETHER_QUARTZ_ORE,
             Material.ANCIENT_DEBRIS,
-
-            // Autres minerais
             Material.GLOWSTONE, Material.AMETHYST_CLUSTER
     );
 
@@ -69,33 +71,24 @@ public class VeinminerListener implements Listener {
         Block block = event.getBlock();
         ItemStack tool = player.getInventory().getItemInMainHand();
 
-        // Vérifications de base
         if (player.getGameMode() != GameMode.SURVIVAL) return;
-
-        // Vérifier que c'est un minerai
         if (!ORE_TYPES.contains(block.getType())) return;
-
-        // Vérifier que c'est une pioche
         if (!tool.getType().name().endsWith("_PICKAXE")) return;
 
         Enchantment veinminer = module.getVeinminerEnchantment();
         if (veinminer == null || !tool.containsEnchantment(veinminer)) return;
 
-        // Vérifier le toggle
         UUID uuid = player.getUniqueId();
         Boolean veinminerEnabled = module.getVeinminerToggles().getIfPresent(uuid);
         if (veinminerEnabled != null && !veinminerEnabled) {
             return;
         }
 
-        // Désactiver avec Shift
         if (player.isSneaking()) return;
 
-        // Trouver tous les minerais connectés du même type
         Set<Block> vein = findConnectedOres(block, block.getType());
-        if (vein.size() <= 1) return; // Pas de filon, juste un bloc isolé
+        if (vein.size() <= 1) return;
 
-        // Vérifier cooldown SEULEMENT si c'est un vrai filon
         Long lastUse = module.getVeinminerCooldowns().getIfPresent(uuid);
         int cooldown = module.getConfigManager().getInt("enchants.veinminer.cooldown", 5);
 
@@ -105,65 +98,51 @@ public class VeinminerListener implements Listener {
             return;
         }
 
-        // Appliquer cooldown
         module.getVeinminerCooldowns().put(uuid, System.currentTimeMillis());
 
-        // Vérifier enchantements
         boolean hasSilkTouch = tool.containsEnchantment(Enchantment.SILK_TOUCH);
         int fortuneLevel = tool.getEnchantmentLevel(Enchantment.FORTUNE);
         int unbreakingLevel = tool.getEnchantmentLevel(Enchantment.UNBREAKING);
         boolean isUnbreakable = tool.getItemMeta() != null && tool.getItemMeta().isUnbreakable();
 
-        // Vérifier Experience
         Enchantment experienceEnchant = module.getExperienceEnchantment();
         int experienceLevel = 0;
         if (experienceEnchant != null && tool.containsEnchantment(experienceEnchant)) {
             experienceLevel = tool.getEnchantmentLevel(experienceEnchant);
         }
 
-        // Vérifier Magnetic
         Enchantment magneticEnchant = module.getMagneticEnchantment();
         Boolean magneticToggle = module.getMagneticToggles().getIfPresent(uuid);
         boolean hasMagnetic = magneticEnchant != null &&
                 tool.containsEnchantment(magneticEnchant) &&
                 (magneticToggle == null || magneticToggle);
 
-        // Miner le filon
         processing.set(true);
         try {
             int blocksMined = 0;
             int totalXP = 0;
 
             for (Block ore : vein) {
-                if (ore.equals(block)) continue; // Bloc déjà cassé par l'événement principal
+                if (ore.equals(block)) continue;
 
-                // Vérifier protection Towny
                 if (!canBreakBlock(player, ore)) continue;
 
-                // Obtenir les drops
                 Collection<ItemStack> drops = getDrops(ore, tool, hasSilkTouch, fortuneLevel);
-
-                // Obtenir l'XP
                 int xp = getOreExperience(ore.getType());
                 totalXP += xp;
 
-                // Casser le bloc
                 ore.setType(Material.AIR);
-
-                // Gérer les drops
                 handleDrops(player, ore, drops, hasMagnetic);
 
                 blocksMined++;
 
-                // Appliquer durabilité
                 if (!isUnbreakable && shouldDamage(unbreakingLevel)) {
                     if (!damageItem(tool, player)) {
-                        break; // Outil cassé, arrêter immédiatement
+                        break;
                     }
                 }
             }
 
-            // Spawn de l'XP totale
             if (totalXP > 0 && !hasSilkTouch) {
                 if (experienceLevel > 0) {
                     double multiplier = 1.0 + (0.25 * experienceLevel);
@@ -177,7 +156,6 @@ public class VeinminerListener implements Listener {
                 orb.setExperience(totalXP);
             }
 
-            // Particules de fumée
             if (blocksMined > 0) {
                 Location loc = block.getLocation().add(0.5, 0.5, 0.5);
                 player.getWorld().spawnParticle(Particle.SMOKE, loc, 20, 0.5, 0.5, 0.5, 0.02);
@@ -191,13 +169,17 @@ public class VeinminerListener implements Listener {
     }
 
     /**
-     * Trouve tous les minerais connectés du même type
+     * ✅ OPTIMISATION: Utilisation de ArrayDeque (plus rapide que LinkedList)
+     * ✅ OPTIMISATION: Pré-allocation avec taille estimée
+     * ✅ OPTIMISATION: Offsets précalculés
      */
     @NotNull
     private Set<Block> findConnectedOres(@NotNull Block start, @NotNull Material targetType) {
         int maxBlocks = module.getConfigManager().getInt("enchants.veinminer.max-blocks", 150);
-        Set<Block> visited = new HashSet<>();
-        Queue<Block> queue = new LinkedList<>();
+
+        // ✅ Pré-allocation avec capacité estimée (évite resize)
+        Set<Block> visited = new HashSet<>(maxBlocks);
+        Deque<Block> queue = new ArrayDeque<>(maxBlocks); // ✅ ArrayDeque > LinkedList
 
         queue.add(start);
         visited.add(start);
@@ -205,18 +187,13 @@ public class VeinminerListener implements Listener {
         while (!queue.isEmpty() && visited.size() < maxBlocks) {
             Block current = queue.poll();
 
-            // Vérifier les 26 blocs adjacents (3x3x3 autour)
-            for (int x = -1; x <= 1; x++) {
-                for (int y = -1; y <= 1; y++) {
-                    for (int z = -1; z <= 1; z++) {
-                        if (x == 0 && y == 0 && z == 0) continue;
+            // ✅ Utilisation des offsets précalculés
+            for (int[] offset : ADJACENT_OFFSETS) {
+                Block relative = current.getRelative(offset[0], offset[1], offset[2]);
 
-                        Block relative = current.getRelative(x, y, z);
-                        if (!visited.contains(relative) && relative.getType() == targetType) {
-                            visited.add(relative);
-                            queue.add(relative);
-                        }
-                    }
+                // ✅ add() retourne false si déjà présent (évite contains() + add())
+                if (visited.add(relative) && relative.getType() == targetType) {
+                    queue.add(relative);
                 }
             }
         }
@@ -224,32 +201,21 @@ public class VeinminerListener implements Listener {
         return visited;
     }
 
-    /**
-     * Obtient les drops d'un minerai avec Fortune/Silk Touch
-     */
     @NotNull
     private Collection<ItemStack> getDrops(@NotNull Block block, @NotNull ItemStack tool,
                                            boolean hasSilkTouch, int fortuneLevel) {
         if (hasSilkTouch) {
-            // Silk Touch: retourner le minerai brut
             return Collections.singletonList(new ItemStack(block.getType()));
         }
-
-        // Fortune: utiliser la méthode native de Minecraft
         return block.getDrops(tool);
     }
 
-    /**
-     * Gère les drops (inventaire ou sol)
-     */
     private void handleDrops(@NotNull Player player, @NotNull Block block,
                              @NotNull Collection<ItemStack> drops, boolean hasMagnetic) {
         if (hasMagnetic) {
-            // Magnetic: mettre dans l'inventaire
             for (ItemStack drop : drops) {
                 Map<Integer, ItemStack> leftover = player.getInventory().addItem(drop);
                 if (!leftover.isEmpty()) {
-                    // Inventaire plein: drop au sol
                     for (ItemStack leftoverItem : leftover.values()) {
                         player.getWorld().dropItemNaturally(
                                 block.getLocation().add(0.5, 0.5, 0.5),
@@ -259,7 +225,6 @@ public class VeinminerListener implements Listener {
                 }
             }
         } else {
-            // Pas Magnetic: drop au sol
             for (ItemStack drop : drops) {
                 player.getWorld().dropItemNaturally(
                         block.getLocation().add(0.5, 0.5, 0.5),
@@ -269,35 +234,29 @@ public class VeinminerListener implements Listener {
         }
     }
 
-    /**
-     * Vérifie si le joueur peut casser un bloc (Towny)
-     */
     private boolean canBreakBlock(@NotNull Player player, @NotNull Block block) {
         BlockBreakEvent testEvent = new BlockBreakEvent(block, player);
         module.plugin.getServer().getPluginManager().callEvent(testEvent);
         return !testEvent.isCancelled();
     }
 
-    /**
-     * Vérifie si l'outil doit perdre de la durabilité (Unbreaking)
-     */
     private boolean shouldDamage(int unbreakingLevel) {
         if (unbreakingLevel <= 0) return true;
         return ThreadLocalRandom.current().nextDouble() > (1.0 / (unbreakingLevel + 1));
     }
 
     /**
-     * Applique la durabilité à l'outil
+     * ✅ FIX: Protection contre durabilité négative
      */
     private boolean damageItem(@NotNull ItemStack item, @NotNull Player player) {
         if (!(item.getItemMeta() instanceof Damageable damageable)) {
             return true;
         }
 
-        int newDamage = damageable.getDamage() + 1;
+        // ✅ Clamp à 0 minimum (évite durabilité négative)
+        int newDamage = Math.max(0, damageable.getDamage() + 1);
 
         if (newDamage >= item.getType().getMaxDurability()) {
-            // Outil cassé
             item.setAmount(0);
             player.getInventory().setItemInMainHand(new ItemStack(Material.AIR));
             player.playSound(player.getLocation(), Sound.ENTITY_ITEM_BREAK, 1.0f, 1.0f);
@@ -309,9 +268,6 @@ public class VeinminerListener implements Listener {
         }
     }
 
-    /**
-     * Obtient l'XP d'un minerai
-     */
     private int getOreExperience(@NotNull Material material) {
         return switch (material) {
             case COAL_ORE, DEEPSLATE_COAL_ORE -> getRandomInRange(0, 2);

@@ -286,17 +286,6 @@ public class ConfigManager {
     }
 
     /**
-     * Récupère les clés d'une section
-     * @param path Chemin
-     * @return Set de clés
-     */
-    @NotNull
-    public Set<String> getKeys(@NotNull String path) {
-        ConfigurationSection section = getConfigurationSection(path);
-        return section != null ? section.getKeys(false) : Collections.emptySet();
-    }
-
-    /**
      * Récupère un fichier de configuration additionnel
      * @param fileName Nom du fichier
      * @return FileConfiguration ou null

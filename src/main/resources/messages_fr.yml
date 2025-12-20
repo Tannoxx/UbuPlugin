@@ -1,5 +1,5 @@
 # ═══════════════════════════════════════════════════════════
-#           TRADUCTIONS FRANÇAISES - UbuPlugin v2.0.1
+#           TRADUCTIONS FRANÇAISES - UbuPlugin v2.0.2
 # ═══════════════════════════════════════════════════════════
 
 # Symboles spéciaux
@@ -95,7 +95,6 @@ enchants:
     given: "<green>Livre enchanté Beaconator {0} donné à {1} !</green>"
     received: "<green>Vous avez reçu un livre enchanté Beaconator {0} !</green>"
 
-  # ✅ AJOUTÉ: Messages pour /toggle
   toggle:
     timber:
       enabled: "<green>✓ Timber activé</green>"
@@ -155,6 +154,9 @@ earthtools:
     api-unavailable: "<gray>L'API de géolocalisation est peut-être temporairement indisponible.</gray>"
     coords: "<gray>(GPS: {0})</gray>"
     cached: " <dark_gray>[cache]</dark_gray>"
+    rate-limit: "<red>⚠ Limite de recherche atteinte !</red>"
+    rate-limit-info: "<gray>Vous pouvez effectuer maximum 5 recherches par minute.</gray>"
+    rate-limit-wait: "<yellow>Veuillez patienter avant de rechercher à nouveau.</yellow>"
 
   tpr:
     searching: "<gray>Recherche d'un emplacement sûr...</gray>"
@@ -208,3 +210,4 @@ errors:
   positive-number: "<red>Veuillez entrer un nombre positif !</red>"
   database-error: "<red>Erreur de base de données ! Consultez les logs.</red>"
   unknown-error: "<red>Une erreur inconnue est survenue</red>"
+  cooldown: "<red>Vous devez attendre {0} secondes avant de réutiliser ceci</red>"

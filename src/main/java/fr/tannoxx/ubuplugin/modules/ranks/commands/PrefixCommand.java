@@ -8,6 +8,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,7 +25,7 @@ public record PrefixCommand(RanksModule module) implements CommandExecutor, TabC
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, @NotNull String[] args) {
+                             @NotNull String label, @NotNull String @NonNull [] args) {
         if (!sender.hasPermission("ubuplugin.admin")) {
             module.getTranslationManager().sendPrefixed(sender, "errors.no-permission");
             return true;
@@ -60,7 +61,7 @@ public record PrefixCommand(RanksModule module) implements CommandExecutor, TabC
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                      @NotNull String label, @NotNull String[] args) {
+                                      @NotNull String label, @NotNull String @NonNull [] args) {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {

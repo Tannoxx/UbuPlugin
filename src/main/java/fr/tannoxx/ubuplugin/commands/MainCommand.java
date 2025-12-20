@@ -10,6 +10,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,7 +31,7 @@ public record MainCommand(UbuPlugin plugin, ConfigManager configManager, ModuleM
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, @NotNull String[] args) {
+                             @NotNull String label, @NotNull String @NonNull [] args) {
 
         if (args.length == 0) {
             showHelp(sender);
@@ -194,7 +195,7 @@ public record MainCommand(UbuPlugin plugin, ConfigManager configManager, ModuleM
     public @NotNull List<String> onTabComplete(@NotNull CommandSender sender,
                                                @NotNull Command command,
                                                @NotNull String label,
-                                               @NotNull String[] args) {
+                                               @NotNull String @NonNull [] args) {
 
         List<String> completions = new ArrayList<>();
 

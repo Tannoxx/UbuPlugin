@@ -5,6 +5,7 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,7 +19,7 @@ public record CountryListCommand(EarthToolsModule module) implements CommandExec
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, String[] args) {
+                             @NotNull String label, String @NonNull [] args) {
         File file = new File(module.plugin.getDataFolder(), "countrylist.txt");
 
         if (!file.exists()) {

@@ -21,10 +21,10 @@ import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Listener pour l'enchantement Explosive (Excavator)
- * Thread-safe avec ThreadLocal pour éviter les conflits
+ * Thread-safe avec ThreadLocal
  * <p>
- * CORRECTIONS v2.0.1:
- * - Ajout système de toggle (excavator)
+ * CORRECTIONS v2.0.2:
+ * - Fix durabilité négative
  */
 public class ExplosiveListener implements Listener {
 
@@ -34,7 +34,7 @@ public class ExplosiveListener implements Listener {
     private static final Set<Material> PICKAXE_BLOCKS = EnumSet.of(
             Material.STONE, Material.COBBLESTONE, Material.DEEPSLATE, Material.COBBLED_DEEPSLATE,
             Material.GRANITE, Material.DIORITE, Material.ANDESITE, Material.TUFF, Material.CALCITE,
-            Material.SMOOTH_BASALT, Material.DRIPSTONE_BLOCK,Material.BASALT, Material.BLACKSTONE,
+            Material.SMOOTH_BASALT, Material.DRIPSTONE_BLOCK, Material.BASALT, Material.BLACKSTONE,
             Material.NETHERRACK, Material.CRIMSON_NYLIUM, Material.WARPED_NYLIUM,
             Material.END_STONE, Material.SANDSTONE, Material.RED_SANDSTONE, Material.PRISMARINE, Material.MAGMA_BLOCK,
             Material.GLOWSTONE, Material.SEA_LANTERN, Material.AMETHYST_BLOCK,
@@ -62,14 +62,12 @@ public class ExplosiveListener implements Listener {
 
         if (player.getGameMode() != GameMode.SURVIVAL) return;
 
-        // ✅ CORRECTION: Vérifier le toggle excavator
         UUID uuid = player.getUniqueId();
         Boolean excavatorEnabled = module.getExcavatorToggles().getIfPresent(uuid);
         if (excavatorEnabled != null && !excavatorEnabled) {
             return;
         }
 
-        // Désactiver avec Shift
         if (module.getConfigManager().getBoolean("enchants.explosive.disable-on-sneak", true)) {
             if (player.isSneaking()) return;
         }
@@ -82,17 +80,14 @@ public class ExplosiveListener implements Listener {
         Enchantment explosive = module.getExplosiveEnchantment();
         if (explosive == null || !tool.containsEnchantment(explosive)) return;
 
-        // Vérifier compatibilité du bloc
         if (isPickaxe && !PICKAXE_BLOCKS.contains(block.getType())) return;
         if (isShovel && !SHOVEL_BLOCKS.contains(block.getType())) return;
 
-        // Obtenir la face cassée
         BlockFace face = getHitBlockFace(player, block);
         List<Block> blocksToBreak = get3x3BlocksFromFace(block, face);
 
         if (blocksToBreak.isEmpty()) return;
 
-        // Vérifier enchantements
         boolean hasSilkTouch = module.getConfigManager().getBoolean("enchants.explosive.silk-touch-compatible", true) &&
                 tool.containsEnchantment(Enchantment.SILK_TOUCH);
         boolean collectXP = module.getConfigManager().getBoolean("enchants.explosive.collect-all-xp", true);
@@ -100,14 +95,12 @@ public class ExplosiveListener implements Listener {
         int unbreakingLevel = tool.getEnchantmentLevel(Enchantment.UNBREAKING);
         boolean isUnbreakable = tool.getItemMeta() != null && tool.getItemMeta().isUnbreakable();
 
-        // Vérifier Experience
         Enchantment experienceEnchant = module.getExperienceEnchantment();
         int experienceLevel = 0;
         if (experienceEnchant != null && tool.containsEnchantment(experienceEnchant)) {
             experienceLevel = tool.getEnchantmentLevel(experienceEnchant);
         }
 
-        // Vérifier Magnetic
         Enchantment magneticEnchant = module.getMagneticEnchantment();
         Boolean magneticToggle = module.getMagneticToggles().getIfPresent(uuid);
         boolean hasMagnetic = magneticEnchant != null &&
@@ -125,13 +118,10 @@ public class ExplosiveListener implements Listener {
                 if (!validBlocks.contains(targetBlock.getType())) continue;
                 if (!canBreakBlock(player, targetBlock)) continue;
 
-                // Obtenir les drops
                 Collection<ItemStack> drops = getDrops(targetBlock, tool, hasSilkTouch);
 
-                // Casser le bloc
                 targetBlock.setType(Material.AIR);
 
-                // Gérer l'XP
                 if (!hasSilkTouch && collectXP) {
                     int xp = getBlockExperience(targetBlock.getType());
                     if (xp > 0) {
@@ -148,12 +138,10 @@ public class ExplosiveListener implements Listener {
                     }
                 }
 
-                // Gérer les drops
                 handleDrops(player, targetBlock, drops, hasMagnetic);
 
                 blocksBroken++;
 
-                // Appliquer durabilité
                 if (!isUnbreakable && shouldDamage(unbreakingLevel)) {
                     if (!damageItem(tool, player)) {
                         break;
@@ -161,7 +149,6 @@ public class ExplosiveListener implements Listener {
                 }
             }
 
-            // Particules
             if (blocksBroken > 0) {
                 Location loc = block.getLocation().add(0.5, 0.5, 0.5);
                 player.getWorld().spawnParticle(Particle.SMOKE, loc, 15, 0.5, 0.5, 0.5, 0.02);
@@ -211,7 +198,6 @@ public class ExplosiveListener implements Listener {
             return result.getHitBlockFace();
         }
 
-        // Fallback
         Location playerLoc = player.getEyeLocation();
         Location blockCenter = block.getLocation().add(0.5, 0.5, 0.5);
 
@@ -273,12 +259,16 @@ public class ExplosiveListener implements Listener {
         return ThreadLocalRandom.current().nextDouble() > (1.0 / (unbreakingLevel + 1));
     }
 
+    /**
+     * ✅ FIX: Protection contre durabilité négative
+     */
     private boolean damageItem(@NotNull ItemStack item, @NotNull Player player) {
         if (!(item.getItemMeta() instanceof Damageable damageable)) {
             return true;
         }
 
-        int newDamage = damageable.getDamage() + 1;
+        // ✅ Clamp à 0 minimum
+        int newDamage = Math.max(0, damageable.getDamage() + 1);
 
         if (newDamage >= item.getType().getMaxDurability()) {
             item.setAmount(0);

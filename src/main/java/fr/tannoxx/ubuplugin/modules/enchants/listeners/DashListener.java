@@ -18,6 +18,7 @@ import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Listener pour Dash avec cleanup automatique et niveau 3 invulnérable
  * Thread-safe avec ConcurrentHashMap
- *
+ * <p>
  * Niveau 3 : Le joueur devient invulnérable et inarrêtable pendant 1.5s
  */
 public class DashListener implements Listener {
@@ -239,12 +240,12 @@ public class DashListener implements Listener {
 
         // Cleanup des joueurs déconnectés qui seraient restés dans invulnerablePlayers
         invulnerablePlayers.removeIf(uuid ->
-                Bukkit.getPlayer(uuid) == null || !Bukkit.getPlayer(uuid).isOnline()
+                Bukkit.getPlayer(uuid) == null || !Objects.requireNonNull(Bukkit.getPlayer(uuid)).isOnline()
         );
 
         // Cleanup justDashed (sécurité)
         justDashed.removeIf(uuid ->
-                Bukkit.getPlayer(uuid) == null || !Bukkit.getPlayer(uuid).isOnline()
+                Bukkit.getPlayer(uuid) == null || !Objects.requireNonNull(Bukkit.getPlayer(uuid)).isOnline()
         );
     }
 }

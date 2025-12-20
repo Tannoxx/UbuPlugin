@@ -1,6 +1,7 @@
 package fr.tannoxx.ubuplugin.modules.antiafk.listeners;
 
 import fr.tannoxx.ubuplugin.modules.antiafk.AntiAFKModule;
+import io.papermc.paper.event.player.AsyncChatEvent;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -10,6 +11,7 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
 
@@ -17,6 +19,7 @@ import org.jetbrains.annotations.NotNull;
  * Listener amélioré pour détecter l'activité des joueurs
  * Distingue les activités fortes (preuves réelles) des activités faibles (automatisables)
  */
+@SuppressWarnings("unused")
 public record AFKListener(AntiAFKModule module) implements Listener {
 
     public AFKListener(@NotNull AntiAFKModule module) {
@@ -37,8 +40,12 @@ public record AFKListener(AntiAFKModule module) implements Listener {
 
     // ========== ACTIVITÉS FORTES (Preuves réelles d'activité) ==========
 
+    /**
+     * Détecte les messages de chat des joueurs (Paper API)
+     * Note: Utilise AsyncChatEvent au lieu de AsyncPlayerChatEvent (deprecated)
+     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerChat(@NotNull AsyncPlayerChatEvent event) {
+    public void onPlayerChat(@NotNull AsyncChatEvent event) {
         module.recordStrongActivity(event.getPlayer());
     }
 
@@ -110,10 +117,15 @@ public record AFKListener(AntiAFKModule module) implements Listener {
         module.recordWeakActivity(player, "DROP", loc.getX(), loc.getY(), loc.getZ());
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onPlayerPickupItem(@NotNull PlayerPickupItemEvent event) {
-        Player player = event.getPlayer();
-        Location loc = player.getLocation();
-        module.recordWeakActivity(player, "PICKUP", loc.getX(), loc.getY(), loc.getZ());
+    /**
+     * Détecte quand un joueur ramasse un item
+     * Note: Utilise EntityPickupItemEvent au lieu de PlayerPickupItemEvent (deprecated depuis 1.12)
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onEntityPickupItem(@NotNull EntityPickupItemEvent event) {
+        if (event.getEntity() instanceof Player player) {
+            Location loc = player.getLocation();
+            module.recordWeakActivity(player, "PICKUP", loc.getX(), loc.getY(), loc.getZ());
+        }
     }
 }

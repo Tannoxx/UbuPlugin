@@ -7,6 +7,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,7 +25,7 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, @NotNull String[] args) {
+                             @NotNull String label, @NotNull String @NonNull [] args) {
         if (!(sender instanceof Player player)) {
             module.getTranslationManager().send(sender, "errors.player-only");
             return true;
@@ -106,7 +107,7 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
 
     @Override
     public List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command,
-                                      @NotNull String label, @NotNull String[] args) {
+                                      @NotNull String label, @NotNull String @NonNull [] args) {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {

@@ -9,12 +9,13 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.NotNull;
+import org.jspecify.annotations.NonNull;
 
 public record LobbyCommand(LobbyChatModule module) implements CommandExecutor {
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
-                             @NotNull String label, String[] args) {
+                             @NotNull String label, String @NonNull [] args) {
         if (!(sender instanceof Player player)) {
             module.getTranslationManager().send(sender, "errors.player-only");
             return true;

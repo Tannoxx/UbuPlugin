@@ -17,11 +17,18 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Listener pour Beaconator
  * Thread-safe avec cache concurrent
+ * <p>
+ * OPTIMISATIONS v2.0.2:
+ * - Indexation par chunk pour réduire les calculs
+ * - Cache spatial pour éviter de recalculer tous les beacons
  */
 public class BeaconatorListener implements Runnable {
 
     private final EnchantsModule module;
-    private final Map<Location, BeaconData> beaconCache = new ConcurrentHashMap<>();
+
+    // ✅ OPTIMISATION: Cache par chunk
+    private final Map<ChunkPos, Set<BeaconData>> beaconsByChunk = new ConcurrentHashMap<>();
+
     private volatile long lastCacheUpdate = 0;
     private static final long CACHE_DURATION = 5000;
 
@@ -57,8 +64,11 @@ public class BeaconatorListener implements Runnable {
         }
     }
 
+    /**
+     * ✅ OPTIMISATION: Mise à jour du cache avec indexation par chunk
+     */
     private void updateBeaconCache() {
-        beaconCache.clear();
+        beaconsByChunk.clear();
 
         for (World world : Bukkit.getWorlds()) {
             for (Chunk chunk : world.getLoadedChunks()) {
@@ -73,11 +83,17 @@ public class BeaconatorListener implements Runnable {
                                 int primaryLevel = primary != null ? primary.getAmplifier() + 1 : 0;
                                 int secondaryLevel = secondary != null ? secondary.getAmplifier() + 1 : 0;
 
-                                beaconCache.put(beacon.getLocation(), new BeaconData(
+                                Location loc = beacon.getLocation();
+                                ChunkPos chunkPos = new ChunkPos(loc.getChunk().getX(), loc.getChunk().getZ(), world.getName());
+
+                                BeaconData data = new BeaconData(
+                                        loc,
                                         primary != null ? primary.getType() : null,
                                         secondary != null ? secondary.getType() : null,
                                         tier, primaryLevel, secondaryLevel
-                                ));
+                                );
+
+                                beaconsByChunk.computeIfAbsent(chunkPos, k -> new HashSet<>()).add(data);
                             }
                         } catch (Exception e) {
                             module.debug("Erreur beacon à {}: {}",
@@ -89,33 +105,47 @@ public class BeaconatorListener implements Runnable {
         }
     }
 
+    /**
+     * ✅ OPTIMISATION: Vérifier uniquement les beacons dans les chunks adjacents
+     */
     private void applyBeaconEffects(@NotNull Player player, int rangeBonus, int beaconatorLevel) {
         Location playerLoc = player.getLocation();
+        Chunk playerChunk = playerLoc.getChunk();
+        String worldName = playerLoc.getWorld().getName();
 
-        for (Map.Entry<Location, BeaconData> entry : beaconCache.entrySet()) {
-            Location beaconLoc = entry.getKey();
-            BeaconData data = entry.getValue();
+        // ✅ Vérifier uniquement les chunks adjacents (3x3 autour du joueur)
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                ChunkPos chunkPos = new ChunkPos(
+                        playerChunk.getX() + dx,
+                        playerChunk.getZ() + dz,
+                        worldName
+                );
 
-            if (!Objects.equals(beaconLoc.getWorld(), playerLoc.getWorld())) continue;
+                Set<BeaconData> beacons = beaconsByChunk.get(chunkPos);
+                if (beacons == null) continue;
 
-            int baseRange = switch (data.tier) {
-                case 1 -> 20;
-                case 2 -> 30;
-                case 3 -> 40;
-                case 4 -> 50;
-                default -> 0;
-            };
+                for (BeaconData data : beacons) {
+                    int baseRange = switch (data.tier) {
+                        case 1 -> 20;
+                        case 2 -> 30;
+                        case 3 -> 40;
+                        case 4 -> 50;
+                        default -> 0;
+                    };
 
-            int totalRange = baseRange + rangeBonus;
+                    int totalRange = baseRange + rangeBonus;
 
-            double horizontalDistance = Math.sqrt(
-                    Math.pow(playerLoc.getX() - beaconLoc.getX(), 2) +
-                            Math.pow(playerLoc.getZ() - beaconLoc.getZ(), 2)
-            );
+                    double horizontalDistance = Math.sqrt(
+                            Math.pow(playerLoc.getX() - data.location.getX(), 2) +
+                                    Math.pow(playerLoc.getZ() - data.location.getZ(), 2)
+                    );
 
-            if (horizontalDistance <= totalRange) {
-                applyEffect(player, data.primaryEffect, data.primaryLevel, beaconatorLevel);
-                applyEffect(player, data.secondaryEffect, data.secondaryLevel, beaconatorLevel);
+                    if (horizontalDistance <= totalRange) {
+                        applyEffect(player, data.primaryEffect, data.primaryLevel, beaconatorLevel);
+                        applyEffect(player, data.secondaryEffect, data.secondaryLevel, beaconatorLevel);
+                    }
+                }
             }
         }
     }
@@ -177,10 +207,19 @@ public class BeaconatorListener implements Runnable {
     }
 
     public void cleanup() {
-        beaconCache.clear();
+        beaconsByChunk.clear();
     }
 
+    /**
+     * ✅ OPTIMISATION: Record pour identifier les chunks
+     */
+    private record ChunkPos(int x, int z, String world) {}
+
+    /**
+     * ✅ OPTIMISATION: Stocke la location pour éviter les lookups
+     */
     private record BeaconData(
+            Location location,
             PotionEffectType primaryEffect,
             PotionEffectType secondaryEffect,
             int tier,

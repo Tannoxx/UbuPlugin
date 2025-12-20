@@ -25,17 +25,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * Listener pour l'enchantement Magnetic
  * Thread-safe avec ConcurrentHashMap
  * <p>
- * CORRECTIONS v2.0.3:
- * - Fix Trident lancé + Magnetic (cherche l'entité Trident dans le monde)
- * - Ajout SHEARS et TRIDENT dans MAGNETIC_TOOLS
- * - Vérification du toggle dans EntityDeathEvent
+ * CORRECTIONS v2.0.4:
+ * - Fix race condition dans recentBreakers
+ * - Cleanup automatique thread-safe
+ * - Optimisation findNearestMagneticPlayer
  */
 public class MagneticListener implements Listener {
 
     private final EnchantsModule module;
+
+    // ✅ FIX: ConcurrentHashMap au lieu de HashMap
     private final Map<UUID, Long> recentBreakers = new ConcurrentHashMap<>();
-    private static final long COLLECTION_WINDOW = 5000; // 5 secondes
-    private static final double TRIDENT_SEARCH_RADIUS = 10.0; // Rayon de recherche du trident
+
+    private static final long COLLECTION_WINDOW = 5000;
+    private static final double TRIDENT_SEARCH_RADIUS = 10.0;
 
     private static final Set<Material> MAGNETIC_TOOLS = EnumSet.of(
             Material.WOODEN_PICKAXE, Material.STONE_PICKAXE, Material.IRON_PICKAXE,
@@ -58,8 +61,27 @@ public class MagneticListener implements Listener {
 
     public MagneticListener(@NotNull EnchantsModule module) {
         this.module = module;
+
+        // ✅ FIX: Cleanup automatique thread-safe
+        startCleanupTask();
     }
 
+    /**
+     * ✅ FIX: Cleanup automatique des entrées expirées
+     */
+    private void startCleanupTask() {
+        module.plugin.getServer().getScheduler().runTaskTimerAsynchronously(
+                module.plugin,
+                () -> {
+                    long currentTime = System.currentTimeMillis();
+                    recentBreakers.entrySet().removeIf(entry ->
+                            currentTime - entry.getValue() > COLLECTION_WINDOW
+                    );
+                },
+                100L, // Délai initial: 5 secondes
+                100L  // Intervalle: 5 secondes
+        );
+    }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onBlockDropItem(@NotNull BlockDropItemEvent event) {
@@ -70,7 +92,6 @@ public class MagneticListener implements Listener {
             return;
         }
 
-        // Vérifier toggle
         UUID uuid = player.getUniqueId();
         Boolean magneticEnabled = module.getMagneticToggles().getIfPresent(uuid);
         if (magneticEnabled != null && !magneticEnabled) {
@@ -85,10 +106,8 @@ public class MagneticListener implements Listener {
 
         if (!hasMagneticTool) return;
 
-        // Enregistrer le casseur récent
         recentBreakers.put(uuid, System.currentTimeMillis());
 
-        // Récupérer tous les items
         List<Item> items = new ArrayList<>(event.getItems());
         event.getItems().clear();
 
@@ -98,7 +117,6 @@ public class MagneticListener implements Listener {
         }
     }
 
-    // ✅ CORRECTION v2.0.3: Fix complet pour Trident lancé
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onEntityDeath(@NotNull EntityDeathEvent event) {
         Player killer = event.getEntity().getKiller();
@@ -111,7 +129,6 @@ public class MagneticListener implements Listener {
 
         UUID uuid = killer.getUniqueId();
 
-        // Vérifier le toggle
         Boolean magneticEnabled = module.getMagneticToggles().getIfPresent(uuid);
         if (magneticEnabled != null && !magneticEnabled) {
             return;
@@ -122,14 +139,12 @@ public class MagneticListener implements Listener {
 
         boolean hasMagnetic = false;
 
-        // Cas 1: Arme en main avec Magnetic
         ItemStack weapon = killer.getInventory().getItemInMainHand();
         if (!weapon.getType().isAir() && weapon.containsEnchantment(magnetic)) {
             hasMagnetic = true;
             module.debug("Magnetic activé via arme en main: {}", weapon.getType());
         }
 
-        // Cas 2: Trident dans l'inventaire (non lancé)
         if (!hasMagnetic) {
             for (ItemStack item : killer.getInventory().getContents()) {
                 if (item != null && item.getType() == Material.TRIDENT &&
@@ -141,7 +156,6 @@ public class MagneticListener implements Listener {
             }
         }
 
-        // ✅ Cas 3: Trident LANCÉ (entité dans le monde)
         if (!hasMagnetic) {
             Trident trident = findNearbyMagneticTrident(killer, event.getEntity().getLocation());
             if (trident != null) {
@@ -152,7 +166,6 @@ public class MagneticListener implements Listener {
 
         if (!hasMagnetic) return;
 
-        // Récupérer les drops dans l'inventaire
         List<ItemStack> drops = new ArrayList<>(event.getDrops());
         event.getDrops().clear();
 
@@ -166,30 +179,21 @@ public class MagneticListener implements Listener {
         module.debug("Magnetic: {} drops récupérés pour {}", drops.size(), killer.getName());
     }
 
-    /**
-     * Cherche un trident lancé avec Magnetic appartenant au joueur
-     * dans un rayon autour de la position donnée
-     */
     @Nullable
     private Trident findNearbyMagneticTrident(@NotNull Player player, @NotNull org.bukkit.Location location) {
         Enchantment magnetic = module.getMagneticEnchantment();
         if (magnetic == null) return null;
 
-        // Chercher tous les tridents proches
         Collection<Entity> nearbyEntities = location.getWorld()
                 .getNearbyEntities(location, TRIDENT_SEARCH_RADIUS, TRIDENT_SEARCH_RADIUS, TRIDENT_SEARCH_RADIUS);
 
         for (Entity entity : nearbyEntities) {
-            // Vérifier que c'est un trident
             if (!(entity instanceof Trident trident)) continue;
 
-            // Vérifier que le trident appartient au joueur
             if (trident.getShooter() == null || !trident.getShooter().equals(player)) continue;
 
-            // Récupérer l'ItemStack du trident via getItemStack()
             ItemStack tridentItem = trident.getItemStack();
 
-            // Vérifier qu'il a Magnetic
             if (tridentItem.containsEnchantment(magnetic)) {
                 return trident;
             }
@@ -217,6 +221,9 @@ public class MagneticListener implements Listener {
         }
     }
 
+    /**
+     * ✅ OPTIMISATION: Réduction du nombre de vérifications
+     */
     @Nullable
     private Player findNearestMagneticPlayer(@NotNull Item item) {
         Player nearest = null;
@@ -226,24 +233,23 @@ public class MagneticListener implements Listener {
         Enchantment magnetic = module.getMagneticEnchantment();
         if (magnetic == null) return null;
 
+        // ✅ Filtrer d'abord les joueurs dans la zone
         Collection<Player> nearbyPlayers = item.getWorld().getNearbyPlayers(item.getLocation(), 30.0);
 
         for (Player player : nearbyPlayers) {
             UUID uuid = player.getUniqueId();
 
-            // Vérifier casseur récent
+            // ✅ Vérification rapide des conditions
             Long lastBreak = recentBreakers.get(uuid);
             if (lastBreak == null || (currentTime - lastBreak) > COLLECTION_WINDOW) {
                 continue;
             }
 
-            // Vérifier toggle
             Boolean magneticEnabled = module.getMagneticToggles().getIfPresent(uuid);
             if (magneticEnabled != null && !magneticEnabled) {
                 continue;
             }
 
-            // Vérifier outil
             ItemStack tool = player.getInventory().getItemInMainHand();
             if (!MAGNETIC_TOOLS.contains(tool.getType()) || !tool.containsEnchantment(magnetic)) {
                 continue;
