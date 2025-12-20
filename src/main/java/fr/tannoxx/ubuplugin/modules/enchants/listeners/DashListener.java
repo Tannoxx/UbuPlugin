@@ -18,7 +18,6 @@ import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Listener pour Dash avec cleanup automatique et niveau 3 invulnérable
  * Thread-safe avec ConcurrentHashMap
- * <p>
+ *
  * Niveau 3 : Le joueur devient invulnérable et inarrêtable pendant 1.5s
  */
 public class DashListener implements Listener {
@@ -36,6 +35,9 @@ public class DashListener implements Listener {
 
     // Joueurs actuellement en dash niveau 3 (invulnérables)
     private final Set<UUID> invulnerablePlayers = ConcurrentHashMap.newKeySet();
+
+    // Joueurs qui viennent de lancer un dash (pour ignorer le velocity event)
+    private final Set<UUID> justDashed = ConcurrentHashMap.newKeySet();
 
     public DashListener(@NotNull EnchantsModule module) {
         this.module = module;
@@ -96,6 +98,8 @@ public class DashListener implements Listener {
     }
 
     private void performDash(@NotNull Player player, int level) {
+        UUID uuid = player.getUniqueId();
+
         Vector direction = player.getLocation().getDirection();
         direction.setY(0);
         direction.normalize();
@@ -110,7 +114,17 @@ public class DashListener implements Listener {
         Vector velocity = direction.multiply(speed);
         velocity.setY(0.2);
 
+        // Marquer le joueur comme venant de dasher (pour ignorer velocity event)
+        justDashed.add(uuid);
+
         player.setVelocity(velocity);
+
+        // Retirer le flag après 2 ticks (le temps que la vélocité soit appliquée)
+        module.plugin.getServer().getScheduler().runTaskLater(
+                module.plugin,
+                () -> justDashed.remove(uuid),
+                2L
+        );
 
         // Effets visuels et sonores
         Location loc = player.getLocation();
@@ -197,22 +211,23 @@ public class DashListener implements Listener {
 
     /**
      * Empêche le knockback pendant le dash niveau 3 (inarrêtable)
+     * MAIS permet la vélocité initiale du dash
      */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerVelocity(@NotNull PlayerVelocityEvent event) {
         Player player = event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // Si le joueur est en dash niveau 3, annuler les changements de vélocité externes
+        // Si le joueur vient de dasher, laisser passer la vélocité
+        if (justDashed.contains(uuid)) {
+            return;
+        }
+
+        // Si le joueur est en dash niveau 3, bloquer les vélocités externes
         if (invulnerablePlayers.contains(uuid)) {
-            // Ne pas annuler complètement, mais réduire drastiquement
-            Vector velocity = event.getVelocity();
-
-            // Garder seulement 10% de la vélocité imposée (quasi inarrêtable)
-            velocity.multiply(0.1);
-            event.setVelocity(velocity);
-
-            module.debug("Dash niveau 3: Knockback réduit pour {}", player.getName());
+            // Annuler complètement les vélocités externes (knockback, explosions, etc.)
+            event.setCancelled(true);
+            module.debug("Dash niveau 3: Knockback bloqué pour {}", player.getName());
         }
     }
 
@@ -224,7 +239,12 @@ public class DashListener implements Listener {
 
         // Cleanup des joueurs déconnectés qui seraient restés dans invulnerablePlayers
         invulnerablePlayers.removeIf(uuid ->
-                Bukkit.getPlayer(uuid) == null || !Objects.requireNonNull(Bukkit.getPlayer(uuid)).isOnline()
+                Bukkit.getPlayer(uuid) == null || !Bukkit.getPlayer(uuid).isOnline()
+        );
+
+        // Cleanup justDashed (sécurité)
+        justDashed.removeIf(uuid ->
+                Bukkit.getPlayer(uuid) == null || !Bukkit.getPlayer(uuid).isOnline()
         );
     }
 }
