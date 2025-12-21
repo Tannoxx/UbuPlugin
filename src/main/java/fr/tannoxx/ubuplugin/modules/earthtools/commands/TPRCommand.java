@@ -233,6 +233,7 @@ public class TPRCommand implements CommandExecutor {
                 material == Material.LAVA ||
                 material == Material.AIR ||
                 material == Material.BEDROCK ||
+                material.name().contains("KELP") ||
                 material.name().contains("LEAVES") ||
                 material.name().contains("ICE") ||
                 material.name().contains("SNOW") ||

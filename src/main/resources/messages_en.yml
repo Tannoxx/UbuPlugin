@@ -154,7 +154,7 @@ earthtools:
     api-unavailable: "<gray>The geolocation API may be temporarily unavailable.</gray>"
     coords: "<gray>(GPS: {0})</gray>"
     cached: " <dark_gray>[cached]</dark_gray>"
-    rate-limit: "<red>⚠ Search limit reached!</red>"
+    rate-limit: "<red>Search limit reached!</red>"
     rate-limit-info: "<gray>You can perform a maximum of 5 searches per minute.</gray>"
     rate-limit-wait: "<yellow>Please wait before searching again.</yellow>"
 

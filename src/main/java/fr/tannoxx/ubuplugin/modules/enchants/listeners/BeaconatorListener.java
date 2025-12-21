@@ -18,9 +18,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * Listener pour Beaconator
  * Thread-safe avec cache concurrent
  * <p>
- * OPTIMISATIONS v2.0.2:
+ * OPTIMISATIONS v2.0.3:
  * - Indexation par chunk pour réduire les calculs
  * - Cache spatial pour éviter de recalculer tous les beacons
+ * - Calcul dynamique du rayon de chunks à vérifier
  */
 public class BeaconatorListener implements Runnable {
 
@@ -106,16 +107,23 @@ public class BeaconatorListener implements Runnable {
     }
 
     /**
-     * ✅ OPTIMISATION: Vérifier uniquement les beacons dans les chunks adjacents
+     * ✅ CORRECTION: Calcul dynamique du rayon de chunks en fonction de la portée maximale
      */
     private void applyBeaconEffects(@NotNull Player player, int rangeBonus, int beaconatorLevel) {
         Location playerLoc = player.getLocation();
         Chunk playerChunk = playerLoc.getChunk();
         String worldName = playerLoc.getWorld().getName();
 
-        // ✅ Vérifier uniquement les chunks adjacents (3x3 autour du joueur)
-        for (int dx = -1; dx <= 1; dx++) {
-            for (int dz = -1; dz <= 1; dz++) {
+        // ✅ Calculer la portée maximale possible (beacon tier 4 + bonus)
+        int maxRange = 50 + rangeBonus; // 50 = portée max d'un beacon tier 4
+
+        // ✅ Calculer le rayon de chunks à vérifier (1 chunk = 16 blocs)
+        // On ajoute 1 pour être sûr de couvrir toute la zone
+        int chunkRadius = (maxRange / 16) + 1;
+
+        // ✅ Vérifier tous les chunks dans le rayon calculé
+        for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
+            for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
                 ChunkPos chunkPos = new ChunkPos(
                         playerChunk.getX() + dx,
                         playerChunk.getZ() + dz,

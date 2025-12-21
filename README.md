@@ -215,12 +215,6 @@ Affiche le temps de jeu des joueurs.
 - `/uptime <joueur>` : Temps de jeu d'un joueur
 - `/uptime leaderboard` : Classement complet
 
-**Classement** :
-- 🥇 1er : Or
-- 🥈 2ème : Argent
-- 🥉 3ème : Bronze
-- Autres : Jaune
-
 #### /countrylist - Liste des pays
 Affiche un texte personnalisé (bannière serveur, liste de pays, etc.).
 
