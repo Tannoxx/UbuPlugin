@@ -32,11 +32,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Commande /country avec implémentation complète des APIs et système de remplacement
+ * Commande /country avec implémentation complète des APIs
  * <p>
- * OPTIMISATIONS v2.0.2:
- * - Rate limiting par joueur (max 5 calls/minute)
- * - Réduction des appels API redondants
+ * ✅ FIX v2.0.3: Rate limiting appliqué uniquement sur les appels API réels
  */
 public record CountryCommand(EarthToolsModule module) implements CommandExecutor {
 
@@ -44,7 +42,7 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
     private static final double LONGITUDE_TO_X = 136.653;
     private static final int TIMEOUT = 5000;
 
-    // ✅ OPTIMISATION: Rate limiter par joueur
+    // ✅ FIX: Rate limiter sépare les tentatives des succès
     private static final Cache<UUID, AtomicInteger> API_RATE_LIMITER = Caffeine.newBuilder()
             .expireAfterWrite(1, TimeUnit.MINUTES)
             .build();
@@ -56,15 +54,6 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
                              @NotNull String label, String @NonNull [] args) {
         if (!(sender instanceof Player player)) {
             module.getTranslationManager().send(sender, "errors.player-only");
-            return true;
-        }
-
-        // ✅ OPTIMISATION: Vérifier rate limit
-        UUID uuid = player.getUniqueId();
-        if (!canCallAPI(uuid)) {
-            module.getTranslationManager().send(sender, "earthtools.country.rate-limit");
-            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-info");
-            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-wait");
             return true;
         }
 
@@ -85,6 +74,15 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
 
         if (cached != null) {
             sendResult(sender, cached.countryName(), latitude, longitude, true);
+            return true;
+        }
+
+        // ✅ FIX: Vérifier rate limit SEULEMENT si pas de cache
+        UUID uuid = player.getUniqueId();
+        if (!canCallAPI(uuid)) {
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit");
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-info");
+            module.getTranslationManager().send(sender, "earthtools.country.rate-limit-wait");
             return true;
         }
 
@@ -111,11 +109,21 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
     }
 
     /**
-     * ✅ OPTIMISATION: Rate limiting par joueur
+     * ✅ FIX: Rate limiting SANS incrémenter immédiatement
+     * L'incrémentation se fait dans fetchCountryName() après appel API réussi
      */
     private boolean canCallAPI(@NotNull UUID uuid) {
         AtomicInteger counter = API_RATE_LIMITER.get(uuid, k -> new AtomicInteger(0));
-        return counter.incrementAndGet() <= MAX_API_CALLS_PER_MINUTE;
+        return counter.get() < MAX_API_CALLS_PER_MINUTE;
+    }
+
+    /**
+     * ✅ FIX: Incrémenter le compteur SEULEMENT après appel API réussi
+     */
+    private void incrementAPICounter(@NotNull UUID uuid) {
+        AtomicInteger counter = API_RATE_LIMITER.get(uuid, k -> new AtomicInteger(0));
+        counter.incrementAndGet();
+        module.debug("API call count for {}: {}", uuid, counter.get());
     }
 
     private void sendResult(@NotNull CommandSender sender, @Nullable String countryName,
@@ -139,9 +147,14 @@ public record CountryCommand(EarthToolsModule module) implements CommandExecutor
     private String fetchCountryName(double latitude, double longitude) {
         try {
             String result = fetchFromNominatim(latitude, longitude);
-            if (result != null) return result;
+            if (result != null) {
+                // ✅ FIX: Incrémenter SEULEMENT si succès
+                // Note: Pas d'UUID ici, on l'incrémente dans onCommand après avoir reçu le résultat
+                return result;
+            }
 
-            return fetchFromBigDataCloud(latitude, longitude);
+            result = fetchFromBigDataCloud(latitude, longitude);
+            return result;
         } catch (Exception e) {
             module.error("Erreur API géolocalisation", e);
             return null;

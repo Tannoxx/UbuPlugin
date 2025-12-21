@@ -1,5 +1,7 @@
 package fr.tannoxx.ubuplugin.modules.enchants.listeners;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import fr.tannoxx.ubuplugin.modules.enchants.EnchantsModule;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
@@ -19,23 +21,23 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Listener pour l'enchantement Magnetic
- * Thread-safe avec ConcurrentHashMap
+ * Thread-safe avec Caffeine Cache
  * <p>
- * CORRECTIONS v2.0.4:
- * - Fix race condition dans recentBreakers
- * - Cleanup automatique thread-safe
- * - Optimisation findNearestMagneticPlayer
+ * ✅ FIX v2.0.3: Utilisation de Caffeine pour auto-expiration (évite memory leak)
  */
 public class MagneticListener implements Listener {
 
     private final EnchantsModule module;
 
-    // ✅ FIX: ConcurrentHashMap au lieu de HashMap
-    private final Map<UUID, Long> recentBreakers = new ConcurrentHashMap<>();
+    // ✅ FIX: Caffeine avec expiration automatique (plus besoin de cleanup manuel)
+    private final Cache<UUID, Long> recentBreakers = Caffeine.newBuilder()
+            .expireAfterWrite(5, TimeUnit.SECONDS)
+            .maximumSize(500)
+            .build();
 
     private static final long COLLECTION_WINDOW = 5000;
     private static final double TRIDENT_SEARCH_RADIUS = 10.0;
@@ -61,26 +63,7 @@ public class MagneticListener implements Listener {
 
     public MagneticListener(@NotNull EnchantsModule module) {
         this.module = module;
-
-        // ✅ FIX: Cleanup automatique thread-safe
-        startCleanupTask();
-    }
-
-    /**
-     * ✅ FIX: Cleanup automatique des entrées expirées
-     */
-    private void startCleanupTask() {
-        module.plugin.getServer().getScheduler().runTaskTimerAsynchronously(
-                module.plugin,
-                () -> {
-                    long currentTime = System.currentTimeMillis();
-                    recentBreakers.entrySet().removeIf(entry ->
-                            currentTime - entry.getValue() > COLLECTION_WINDOW
-                    );
-                },
-                100L, // Délai initial: 5 secondes
-                100L  // Intervalle: 5 secondes
-        );
+        // ✅ Plus besoin de cleanup task (Caffeine le gère automatiquement)
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
@@ -222,7 +205,7 @@ public class MagneticListener implements Listener {
     }
 
     /**
-     * ✅ OPTIMISATION: Réduction du nombre de vérifications
+     * ✅ OPTIMISATION: Utilisation de getIfPresent() sur Caffeine (thread-safe)
      */
     @Nullable
     private Player findNearestMagneticPlayer(@NotNull Item item) {
@@ -233,14 +216,13 @@ public class MagneticListener implements Listener {
         Enchantment magnetic = module.getMagneticEnchantment();
         if (magnetic == null) return null;
 
-        // ✅ Filtrer d'abord les joueurs dans la zone
         Collection<Player> nearbyPlayers = item.getWorld().getNearbyPlayers(item.getLocation(), 30.0);
 
         for (Player player : nearbyPlayers) {
             UUID uuid = player.getUniqueId();
 
-            // ✅ Vérification rapide des conditions
-            Long lastBreak = recentBreakers.get(uuid);
+            // ✅ FIX: Utilisation de Caffeine getIfPresent() (thread-safe)
+            Long lastBreak = recentBreakers.getIfPresent(uuid);
             if (lastBreak == null || (currentTime - lastBreak) > COLLECTION_WINDOW) {
                 continue;
             }

@@ -27,17 +27,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * Listener pour Dash avec cleanup automatique et niveau 3 invulnérable
  * Thread-safe avec ConcurrentHashMap
  * <p>
- * Niveau 3 : Le joueur devient invulnérable et inarrêtable pendant 1.5s
+ * ✅ FIX v2.0.3: Cooldown appliqué uniquement après dash réussi
  */
 public class DashListener implements Listener {
 
     private final EnchantsModule module;
     private final Map<UUID, Long> lastSneakTime = new ConcurrentHashMap<>();
-
-    // Joueurs actuellement en dash niveau 3 (invulnérables)
     private final Set<UUID> invulnerablePlayers = ConcurrentHashMap.newKeySet();
-
-    // Joueurs qui viennent de lancer un dash (pour ignorer le velocity event)
     private final Set<UUID> justDashed = ConcurrentHashMap.newKeySet();
 
     public DashListener(@NotNull EnchantsModule module) {
@@ -72,7 +68,7 @@ public class DashListener implements Listener {
             // Double-sneak détecté
             int level = leggings.getEnchantmentLevel(dash);
 
-            // Vérifier cooldown
+            // ✅ FIX: Vérifier cooldown AVANT de dasher
             Long cooldownEnd = module.getDashCooldowns().getIfPresent(uuid);
             if (cooldownEnd != null && currentTime < cooldownEnd) {
                 long remaining = (cooldownEnd - currentTime) / 1000 + 1;
@@ -80,17 +76,8 @@ public class DashListener implements Listener {
                 return;
             }
 
-            // Effectuer le dash
+            // ✅ Effectuer le dash (le cooldown sera appliqué dans performDash)
             performDash(player, level);
-
-            // Appliquer cooldown
-            int cooldown = switch (level) {
-                case 1 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-1", 10);
-                case 2 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-2", 5);
-                case 3 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-3", 3);
-                default -> 10;
-            };
-            module.getDashCooldowns().put(uuid, currentTime + cooldown * 1000L);
 
             lastSneakTime.remove(uuid);
         } else {
@@ -115,12 +102,12 @@ public class DashListener implements Listener {
         Vector velocity = direction.multiply(speed);
         velocity.setY(0.2);
 
-        // Marquer le joueur comme venant de dasher (pour ignorer velocity event)
+        // Marquer le joueur comme venant de dasher
         justDashed.add(uuid);
 
         player.setVelocity(velocity);
 
-        // Retirer le flag après 2 ticks (le temps que la vélocité soit appliquée)
+        // Retirer le flag après 2 ticks
         module.plugin.getServer().getScheduler().runTaskLater(
                 module.plugin,
                 () -> justDashed.remove(uuid),
@@ -134,52 +121,53 @@ public class DashListener implements Listener {
         world.spawnParticle(Particle.CLOUD, loc, 20, 0.3, 0.3, 0.3, 0.1);
         world.spawnParticle(Particle.CRIT, loc, 15, 0.3, 0.3, 0.3, 0.1);
 
-        // Niveau 3 : Particules Soul Fire Flame
         if (level == 3) {
             world.spawnParticle(Particle.SOUL_FIRE_FLAME, loc, 30, 0.3, 0.3, 0.3, 0.05);
         }
 
         world.playSound(loc, Sound.ENTITY_ENDER_DRAGON_FLAP, 0.5f, 1.5f);
 
-        // Niveau 3 : Invulnérabilité et effets spéciaux
+        // ✅ FIX: Appliquer le cooldown SEULEMENT après dash réussi
+        int cooldown = switch (level) {
+            case 1 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-1", 10);
+            case 2 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-2", 5);
+            case 3 -> module.getConfigManager().getInt("enchants.dash.cooldown.level-3", 3);
+            default -> 10;
+        };
+        module.getDashCooldowns().put(uuid, System.currentTimeMillis() + cooldown * 1000L);
+
+        // Niveau 3 : Invulnérabilité
         if (level == 3) {
             applyLevel3Effects(player);
         }
     }
 
-    /**
-     * Applique les effets du Dash niveau 3 : invulnérabilité et inarrêtable pendant 1.5s
-     */
     private void applyLevel3Effects(@NotNull Player player) {
         UUID uuid = player.getUniqueId();
 
-        // Marquer comme invulnérable
         invulnerablePlayers.add(uuid);
 
-        // Effet de résistance visuelle
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.RESISTANCE,
-                30, // 1.5 secondes (30 ticks)
-                4, // Niveau 5 (résistance quasi-totale)
+                30, // 1.5 secondes
+                4,  // Niveau 5
                 false,
                 false,
                 true
         ));
 
-        // Trail de particules pendant le dash
+        // Trail de particules
         new BukkitRunnable() {
             int ticks = 0;
 
             @Override
             public void run() {
-                if (!player.isOnline() || ticks >= 30) { // 1.5 secondes
-                    // Retirer l'invulnérabilité
+                if (!player.isOnline() || ticks >= 30) {
                     invulnerablePlayers.remove(uuid);
                     cancel();
                     return;
                 }
 
-                // Particules de trail
                 Location loc = player.getLocation();
                 player.getWorld().spawnParticle(
                         Particle.SOUL_FIRE_FLAME,
@@ -194,26 +182,18 @@ public class DashListener implements Listener {
         }.runTaskTimer(module.plugin, 0L, 1L);
     }
 
-    /**
-     * Annule tous les dégâts pour les joueurs en dash niveau 3
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerDamage(@NotNull EntityDamageEvent event) {
         if (!(event.getEntity() instanceof Player player)) return;
 
         UUID uuid = player.getUniqueId();
 
-        // Si le joueur est en dash niveau 3, annuler tous les dégâts
         if (invulnerablePlayers.contains(uuid)) {
             event.setCancelled(true);
             module.debug("Dash niveau 3: Dégâts annulés pour {}", player.getName());
         }
     }
 
-    /**
-     * Empêche le knockback pendant le dash niveau 3 (inarrêtable)
-     * MAIS permet la vélocité initiale du dash
-     */
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerVelocity(@NotNull PlayerVelocityEvent event) {
         Player player = event.getPlayer();
@@ -226,7 +206,6 @@ public class DashListener implements Listener {
 
         // Si le joueur est en dash niveau 3, bloquer les vélocités externes
         if (invulnerablePlayers.contains(uuid)) {
-            // Annuler complètement les vélocités externes (knockback, explosions, etc.)
             event.setCancelled(true);
             module.debug("Dash niveau 3: Knockback bloqué pour {}", player.getName());
         }
@@ -238,12 +217,10 @@ public class DashListener implements Listener {
                 currentTime - entry.getValue() > 2000
         );
 
-        // Cleanup des joueurs déconnectés qui seraient restés dans invulnerablePlayers
         invulnerablePlayers.removeIf(uuid ->
                 Bukkit.getPlayer(uuid) == null || !Objects.requireNonNull(Bukkit.getPlayer(uuid)).isOnline()
         );
 
-        // Cleanup justDashed (sécurité)
         justDashed.removeIf(uuid ->
                 Bukkit.getPlayer(uuid) == null || !Objects.requireNonNull(Bukkit.getPlayer(uuid)).isOnline()
         );
