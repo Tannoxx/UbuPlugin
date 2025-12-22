@@ -22,14 +22,10 @@ import java.util.concurrent.ThreadLocalRandom;
  * Mine automatiquement tous les minerais connectés du même type
  * Thread-safe avec ThreadLocal
  * <p>
- * OPTIMISATIONS v2.0.2:
- * - Utilisation de ArrayDeque au lieu de LinkedList (plus rapide)
- * - Pré-allocation des collections avec taille estimée
- * - Offsets précalculés pour éviter recréation
- * - Protection contre durabilité négative
+ * ✅ FIX v2.0.3: Correction logique findConnectedOres - ne mine QUE les minerais connectés
  *
  * @author Tannoxx
- * @version 2.0.2
+ * @version 2.0.3
  */
 public class VeinminerListener implements Listener {
 
@@ -169,17 +165,16 @@ public class VeinminerListener implements Listener {
     }
 
     /**
-     * ✅ OPTIMISATION: Utilisation de ArrayDeque (plus rapide que LinkedList)
-     * ✅ OPTIMISATION: Pré-allocation avec taille estimée
-     * ✅ OPTIMISATION: Offsets précalculés
+     * ✅ FIX v2.0.3: Correction de la logique
+     * On ajoute dans visited UNIQUEMENT les blocs du bon type
+     * Cela empêche de casser des blocs non-minerais
      */
     @NotNull
     private Set<Block> findConnectedOres(@NotNull Block start, @NotNull Material targetType) {
         int maxBlocks = module.getConfigManager().getInt("enchants.veinminer.max-blocks", 150);
 
-        // ✅ Pré-allocation avec capacité estimée (évite resize)
         Set<Block> visited = new HashSet<>(maxBlocks);
-        Deque<Block> queue = new ArrayDeque<>(maxBlocks); // ✅ ArrayDeque > LinkedList
+        Deque<Block> queue = new ArrayDeque<>(maxBlocks);
 
         queue.add(start);
         visited.add(start);
@@ -187,12 +182,13 @@ public class VeinminerListener implements Listener {
         while (!queue.isEmpty() && visited.size() < maxBlocks) {
             Block current = queue.poll();
 
-            // ✅ Utilisation des offsets précalculés
             for (int[] offset : ADJACENT_OFFSETS) {
                 Block relative = current.getRelative(offset[0], offset[1], offset[2]);
 
-                // ✅ add() retourne false si déjà présent (évite contains() + add())
-                if (visited.add(relative) && relative.getType() == targetType) {
+                // ✅ FIX: Vérifier le type AVANT d'ajouter dans visited
+                // On n'ajoute que les blocs du même type de minerai
+                if (relative.getType() == targetType && !visited.contains(relative)) {
+                    visited.add(relative);
                     queue.add(relative);
                 }
             }
@@ -253,7 +249,6 @@ public class VeinminerListener implements Listener {
             return true;
         }
 
-        // ✅ Clamp à 0 minimum (évite durabilité négative)
         int newDamage = Math.max(0, damageable.getDamage() + 1);
 
         if (newDamage >= item.getType().getMaxDurability()) {

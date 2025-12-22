@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Thread-safe avec ConcurrentHashMap
  * <p>
  * ✅ FIX v2.0.3: Cooldown appliqué uniquement après dash réussi
+ * ✅ FIX v2.0.4: Dash dans la direction du regard (incluant verticale)
  */
 public class DashListener implements Listener {
 
@@ -88,8 +89,8 @@ public class DashListener implements Listener {
     private void performDash(@NotNull Player player, int level) {
         UUID uuid = player.getUniqueId();
 
+        // ✅ Utiliser la direction complète du regard (incluant Y)
         Vector direction = player.getLocation().getDirection();
-        direction.setY(0);
         direction.normalize();
 
         double speed = switch (level) {
@@ -100,7 +101,6 @@ public class DashListener implements Listener {
         };
 
         Vector velocity = direction.multiply(speed);
-        velocity.setY(0.2);
 
         // Marquer le joueur comme venant de dasher
         justDashed.add(uuid);

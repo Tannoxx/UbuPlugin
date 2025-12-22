@@ -13,6 +13,9 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
+import org.bukkit.event.EventHandler;
+import org.bukkit.event.Listener;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.SkullMeta;
@@ -21,16 +24,21 @@ import org.jetbrains.annotations.NotNull;
 import org.jspecify.annotations.NonNull;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Commande /uptime avec GUI interactif pour le leaderboard
  * <p>
- * AMÉLIORATIONS v2.0.2:
- * - GUI avec têtes de joueurs au lieu de texte
- * - Pagination pour afficher plus de joueurs
- * - Design visuel amélioré
+ * AMÉLIORATIONS v2.0.3:
+ * - GUI avec pagination complète (flèches)
+ * - Console affiche top 100 avec rangs
+ * - Support de tous les joueurs avec temps > 0
  */
-public record UptimeCommand(EarthToolsModule module) implements CommandExecutor, TabCompleter {
+public record UptimeCommand(EarthToolsModule module) implements CommandExecutor, TabCompleter, Listener {
+
+    private static final int PLAYERS_PER_PAGE = 45;
+    private static final int MAX_CONSOLE_DISPLAY = 100;
+    private static final Map<UUID, Integer> playerPages = new ConcurrentHashMap<>();
 
     @Override
     public boolean onCommand(@NotNull CommandSender sender, @NotNull Command command,
@@ -43,10 +51,10 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
 
         if (args[0].equalsIgnoreCase("leaderboard") || args[0].equalsIgnoreCase("top")) {
             if (sender instanceof Player player) {
-                // ✅ GUI pour les joueurs
-                showLeaderboardGUI(player);
+                // ✅ GUI pour les joueurs avec pagination
+                showLeaderboardGUI(player, 0);
             } else {
-                // Console: texte classique
+                // ✅ Console: top 100 avec rangs
                 showLeaderboardText(sender);
             }
             return true;
@@ -71,9 +79,9 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
     }
 
     /**
-     * ✅ NOUVEAU: Affiche le leaderboard dans un inventaire GUI
+     * ✅ NOUVEAU: Affiche le leaderboard avec pagination
      */
-    private void showLeaderboardGUI(@NotNull Player player) {
+    private void showLeaderboardGUI(@NotNull Player player, int page) {
         module.getTranslationManager().send(player, "earthtools.uptime.loading");
 
         new BukkitRunnable() {
@@ -81,7 +89,7 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
             public void run() {
                 OfflinePlayer[] allPlayers = Bukkit.getOfflinePlayers();
 
-                List<PlayerStats> playerStats = Arrays.stream(allPlayers)
+                List<PlayerStats> allStats = Arrays.stream(allPlayers)
                         .parallel()
                         .filter(p -> p.hasPlayedBefore() && p.getName() != null)
                         .map(p -> {
@@ -91,13 +99,12 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
                         })
                         .filter(stats -> stats.playtime > 0)
                         .sorted(Comparator.comparingLong(PlayerStats::playtime).reversed())
-                        .limit(45) // Top 45 joueurs (5 rangées)
                         .toList();
 
                 new BukkitRunnable() {
                     @Override
                     public void run() {
-                        openLeaderboardInventory(player, playerStats);
+                        openLeaderboardInventory(player, allStats, page);
                     }
                 }.runTask(module.plugin);
             }
@@ -105,30 +112,38 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
     }
 
     /**
-     * Crée et ouvre l'inventaire du leaderboard
+     * Crée et ouvre l'inventaire du leaderboard avec pagination
      */
-    private void openLeaderboardInventory(@NotNull Player player, @NotNull List<PlayerStats> stats) {
+    private void openLeaderboardInventory(@NotNull Player player, @NotNull List<PlayerStats> allStats, int page) {
+        int totalPages = (int) Math.ceil((double) allStats.size() / PLAYERS_PER_PAGE);
+        page = Math.max(0, Math.min(page, totalPages - 1)); // Clamp page
+
+        // Sauvegarder la page actuelle du joueur
+        playerPages.put(player.getUniqueId(), page);
+
         // Créer un inventaire de 54 slots (6 rangées)
         Inventory inv = Bukkit.createInventory(null, 54,
-                Component.text("🏆 Top Joueurs - Temps de Jeu", NamedTextColor.GOLD, TextDecoration.BOLD));
+                Component.text("🏆 Top Joueurs - Page " + (page + 1) + "/" + totalPages,
+                        NamedTextColor.GOLD, TextDecoration.BOLD));
+
+        // Calculer les indices pour cette page
+        int startIndex = page * PLAYERS_PER_PAGE;
+        int endIndex = Math.min(startIndex + PLAYERS_PER_PAGE, allStats.size());
 
         int slot = 0;
-        int rank = 1;
-
-        for (PlayerStats stat : stats) {
-            if (slot >= 45) break; // 5 rangées de joueurs (slots 0-44)
+        for (int i = startIndex; i < endIndex; i++) {
+            PlayerStats stat = allStats.get(i);
+            int rank = i + 1; // Rang global
 
             ItemStack skull = createPlayerSkull(stat, rank);
             inv.setItem(slot, skull);
-
             slot++;
-            rank++;
         }
 
         // Décoration: bordure
         ItemStack border = new ItemStack(Material.GRAY_STAINED_GLASS_PANE);
         var borderMeta = border.getItemMeta();
-        borderMeta.displayName(Component.text(" ")); // Nom vide
+        borderMeta.displayName(Component.text(" "));
         border.setItemMeta(borderMeta);
 
         // Remplir la dernière rangée avec la bordure
@@ -136,19 +151,83 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
             inv.setItem(i, border);
         }
 
-        // Item d'info au centre de la dernière rangée
+        // ✅ Bouton page précédente (slot 48)
+        if (page > 0) {
+            ItemStack prevPage = new ItemStack(Material.ARROW);
+            var prevMeta = prevPage.getItemMeta();
+            prevMeta.displayName(Component.text("← Page précédente", NamedTextColor.YELLOW, TextDecoration.BOLD));
+            prevMeta.lore(List.of(
+                    Component.text(""),
+                    Component.text("Page " + page + "/" + totalPages, NamedTextColor.GRAY)
+            ));
+            prevPage.setItemMeta(prevMeta);
+            inv.setItem(48, prevPage);
+        }
+
+        // Item d'info au centre (slot 49)
         ItemStack infoItem = new ItemStack(Material.BOOK);
         var infoMeta = infoItem.getItemMeta();
         infoMeta.displayName(Component.text("📊 Statistiques", NamedTextColor.AQUA, TextDecoration.BOLD));
         infoMeta.lore(Arrays.asList(
                 Component.text(""),
-                Component.text("Total joueurs: " + stats.size(), NamedTextColor.GRAY),
+                Component.text("Total joueurs: " + allStats.size(), NamedTextColor.GRAY),
+                Component.text("Page: " + (page + 1) + "/" + totalPages, NamedTextColor.GRAY),
                 Component.text("Mis à jour en temps réel", NamedTextColor.DARK_GRAY)
         ));
         infoItem.setItemMeta(infoMeta);
-        inv.setItem(49, infoItem); // Centre de la dernière rangée
+        inv.setItem(49, infoItem);
+
+        // ✅ Bouton page suivante (slot 50)
+        if (page < totalPages - 1) {
+            ItemStack nextPage = new ItemStack(Material.ARROW);
+            var nextMeta = nextPage.getItemMeta();
+            nextMeta.displayName(Component.text("Page suivante →", NamedTextColor.YELLOW, TextDecoration.BOLD));
+            nextMeta.lore(List.of(
+                    Component.text(""),
+                    Component.text("Page " + (page + 2) + "/" + totalPages, NamedTextColor.GRAY)
+            ));
+            nextPage.setItemMeta(nextMeta);
+            inv.setItem(50, nextPage);
+        }
 
         player.openInventory(inv);
+    }
+
+    /**
+     * ✅ Gestion des clics sur les boutons de pagination
+     */
+    @EventHandler
+    public void onInventoryClick(@NotNull InventoryClickEvent event) {
+        if (!(event.getWhoClicked() instanceof Player player)) return;
+
+        // Vérifier le titre de manière sûre avec serialization
+        Component title = event.getView().title();
+        String titleStr = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(title);
+
+        if (!titleStr.startsWith("🏆 Top Joueurs")) return;
+
+        event.setCancelled(true);
+
+        ItemStack clicked = event.getCurrentItem();
+        if (clicked == null || clicked.getType() == Material.AIR) return;
+
+        Integer currentPage = playerPages.get(player.getUniqueId());
+        if (currentPage == null) currentPage = 0;
+
+        // Détection des boutons
+        if (clicked.getType() == Material.ARROW) {
+            Component displayName = clicked.getItemMeta().displayName();
+            assert displayName != null;
+            String name = net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer.plainText().serialize(displayName);
+
+            if (name.contains("précédente")) {
+                // Page précédente
+                showLeaderboardGUI(player, currentPage - 1);
+            } else if (name.contains("suivante")) {
+                // Page suivante
+                showLeaderboardGUI(player, currentPage + 1);
+            }
+        }
     }
 
     /**
@@ -158,7 +237,6 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
         ItemStack skull = new ItemStack(Material.PLAYER_HEAD);
         SkullMeta meta = (SkullMeta) skull.getItemMeta();
 
-        // Définir le propriétaire de la tête
         meta.setOwningPlayer(stat.player);
 
         // Couleur du nom selon le rang
@@ -194,7 +272,7 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
     }
 
     /**
-     * Affiche le leaderboard en mode texte (pour console ou fallback)
+     * ✅ AMÉLIORÉ: Affiche le top 100 avec rangs en console
      */
     private void showLeaderboardText(@NotNull CommandSender sender) {
         module.getTranslationManager().send(sender, "earthtools.uptime.loading");
@@ -214,6 +292,7 @@ public record UptimeCommand(EarthToolsModule module) implements CommandExecutor,
                         })
                         .filter(stats -> stats.playtime > 0)
                         .sorted(Comparator.comparingLong(PlayerStats::playtime).reversed())
+                        .limit(MAX_CONSOLE_DISPLAY) // ✅ Top 100 max
                         .toList();
 
                 int totalPlayers = playerStats.size();

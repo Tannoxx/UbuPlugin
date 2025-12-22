@@ -6,6 +6,7 @@ import fr.tannoxx.ubuplugin.UbuPlugin;
 import fr.tannoxx.ubuplugin.common.module.Module;
 import fr.tannoxx.ubuplugin.common.module.ModuleManager;
 import fr.tannoxx.ubuplugin.modules.earthtools.commands.*;
+import fr.tannoxx.ubuplugin.modules.earthtools.listeners.UptimeGUIListener; // ✅ AJOUTÉ
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -14,6 +15,8 @@ import java.util.concurrent.TimeUnit;
 /**
  * Module EarthTools avec APIs de géolocalisation et country replacements
  * Thread-safe avec cache Caffeine
+ * <p>
+ * ✅ FIX v2.0.3: Protection GUI Uptime
  */
 public class EarthToolsModule extends Module {
 
@@ -33,6 +36,9 @@ public class EarthToolsModule extends Module {
                 .maximumSize(1000)
                 .build();
 
+        // ✅ AJOUTÉ: Enregistrer le listener de protection GUI
+        plugin.getServer().getPluginManager().registerEvents(new UptimeGUIListener(), plugin);
+
         // Enregistrer les commandes avec TabCompleters
         GPSCommand gpsCommand = new GPSCommand(this);
         Objects.requireNonNull(plugin.getCommand("gps")).setExecutor(gpsCommand);
@@ -47,6 +53,7 @@ public class EarthToolsModule extends Module {
         UptimeCommand uptimeCommand = new UptimeCommand(this);
         Objects.requireNonNull(plugin.getCommand("uptime")).setExecutor(uptimeCommand);
         Objects.requireNonNull(plugin.getCommand("uptime")).setTabCompleter(uptimeCommand);
+        plugin.getServer().getPluginManager().registerEvents(uptimeCommand, plugin);
 
         Objects.requireNonNull(plugin.getCommand("countrylist")).setExecutor(new CountryListCommand(this));
         Objects.requireNonNull(plugin.getCommand("setcountrylist")).setExecutor(new SetCountryListCommand(this));
