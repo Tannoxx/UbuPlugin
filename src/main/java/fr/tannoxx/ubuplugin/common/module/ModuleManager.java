@@ -9,6 +9,7 @@ import fr.tannoxx.ubuplugin.modules.earthtools.EarthToolsModule;
 import fr.tannoxx.ubuplugin.modules.enchants.EnchantsModule;
 import fr.tannoxx.ubuplugin.modules.lobbychat.LobbyChatModule;
 import fr.tannoxx.ubuplugin.modules.ranks.RanksModule;
+import fr.tannoxx.ubuplugin.modules.webmap.WebMapModule;
 import org.jetbrains.annotations.NotNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,6 +79,7 @@ public class ModuleManager {
         registerModule(new EarthToolsModule(plugin, this));
         registerModule(new LobbyChatModule(plugin, this));
         registerModule(new AntiAFKModule(plugin, this));
+        registerModule(new WebMapModule(plugin, this));
 
         // Charger chaque module
         for (Module module : modules.values()) {

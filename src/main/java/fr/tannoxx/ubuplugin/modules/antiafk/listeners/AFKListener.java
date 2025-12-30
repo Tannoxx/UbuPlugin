@@ -1,8 +1,6 @@
 package fr.tannoxx.ubuplugin.modules.antiafk.listeners;
 
 import fr.tannoxx.ubuplugin.modules.antiafk.AntiAFKModule;
-import io.papermc.paper.event.player.AsyncChatEvent;
-import org.bukkit.Location;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -11,121 +9,95 @@ import org.bukkit.event.player.*;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
-import org.bukkit.event.entity.EntityPickupItemEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Listener amélioré pour détecter l'activité des joueurs
- * Distingue les activités fortes (preuves réelles) des activités faibles (automatisables)
+ * Listener pour détecter l'activité des joueurs
  */
-@SuppressWarnings("unused")
 public record AFKListener(AntiAFKModule module) implements Listener {
 
     public AFKListener(@NotNull AntiAFKModule module) {
         this.module = module;
     }
 
-    // ========== INITIALISATION ==========
-
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(@NotNull PlayerJoinEvent event) {
-        module.recordStrongActivity(event.getPlayer());
+        // Initialiser l'activité lors de la connexion
+        module.updateActivity(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(@NotNull PlayerQuitEvent event) {
+        // Nettoyer les données du joueur
         module.cleanupPlayer(event.getPlayer().getUniqueId());
     }
 
-    // ========== ACTIVITÉS FORTES (Preuves réelles d'activité) ==========
-
-    /**
-     * Détecte les messages de chat des joueurs (Paper API)
-     * Note: Utilise AsyncChatEvent au lieu de AsyncPlayerChatEvent (deprecated)
-     */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerChat(@NotNull AsyncChatEvent event) {
-        module.recordStrongActivity(event.getPlayer());
+    public void onPlayerMove(@NotNull PlayerMoveEvent event) {
+        // Vérifier si le joueur a vraiment bougé (pas juste tourné la tête)
+        if (event.getFrom().getX() != event.getTo().getX() ||
+                event.getFrom().getY() != event.getTo().getY() ||
+                event.getFrom().getZ() != event.getTo().getZ()) {
+            module.updateActivity(event.getPlayer());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerLook(@NotNull PlayerMoveEvent event) {
+        // Vérifier si le joueur a tourné la tête
+        if (event.getFrom().getYaw() != event.getTo().getYaw() ||
+                event.getFrom().getPitch() != event.getTo().getPitch()) {
+            module.updateActivity(event.getPlayer());
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerChat(@NotNull AsyncPlayerChatEvent event) {
+        module.updateActivity(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerCommandPreprocess(@NotNull PlayerCommandPreprocessEvent event) {
-        module.recordStrongActivity(event.getPlayer());
+        module.updateActivity(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockBreak(@NotNull BlockBreakEvent event) {
-        module.recordStrongActivity(event.getPlayer());
+        module.updateActivity(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onBlockPlace(@NotNull BlockPlaceEvent event) {
-        module.recordStrongActivity(event.getPlayer());
+        module.updateActivity(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerInteract(@NotNull PlayerInteractEvent event) {
+        module.updateActivity(event.getPlayer());
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onInventoryClick(@NotNull InventoryClickEvent event) {
         if (event.getWhoClicked() instanceof Player player) {
-            module.recordStrongActivity(player);
+            module.updateActivity(player);
         }
     }
 
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDamageByEntity(@NotNull EntityDamageByEntityEvent event) {
         if (event.getDamager() instanceof Player player) {
-            module.recordStrongActivity(player);
+            module.updateActivity(player);
         }
-    }
-
-    // ========== ACTIVITÉS FAIBLES (Potentiellement automatisables) ==========
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerMove(@NotNull PlayerMoveEvent event) {
-        Location from = event.getFrom();
-        Location to = event.getTo();
-
-        // Vérifier mouvement réel (pas juste rotation)
-        boolean hasMoved = from.getX() != to.getX() ||
-                from.getY() != to.getY() ||
-                from.getZ() != to.getZ();
-
-        // Vérifier rotation de la tête
-        boolean hasRotated = from.getYaw() != to.getYaw() ||
-                from.getPitch() != to.getPitch();
-
-        Player player = event.getPlayer();
-
-        if (hasMoved) {
-            module.recordWeakActivity(player, "MOVE", to.getX(), to.getY(), to.getZ());
-        } else if (hasRotated) {
-            module.recordWeakActivity(player, "LOOK", to.getYaw(), to.getPitch(), 0);
-        }
-    }
-
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onPlayerInteract(@NotNull PlayerInteractEvent event) {
-        Player player = event.getPlayer();
-        Location loc = player.getLocation();
-        module.recordWeakActivity(player, "INTERACT", loc.getX(), loc.getY(), loc.getZ());
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerDropItem(@NotNull PlayerDropItemEvent event) {
-        Player player = event.getPlayer();
-        Location loc = player.getLocation();
-        module.recordWeakActivity(player, "DROP", loc.getX(), loc.getY(), loc.getZ());
+        module.updateActivity(event.getPlayer());
     }
 
-    /**
-     * Détecte quand un joueur ramasse un item
-     * Note: Utilise EntityPickupItemEvent au lieu de PlayerPickupItemEvent (deprecated depuis 1.12)
-     */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
-    public void onEntityPickupItem(@NotNull EntityPickupItemEvent event) {
-        if (event.getEntity() instanceof Player player) {
-            Location loc = player.getLocation();
-            module.recordWeakActivity(player, "PICKUP", loc.getX(), loc.getY(), loc.getZ());
-        }
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerPickupItem(@NotNull PlayerPickupItemEvent event) {
+        module.updateActivity(event.getPlayer());
     }
 }

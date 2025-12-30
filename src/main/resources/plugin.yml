@@ -6,7 +6,7 @@ author: Tannoxx
 website: https://ubuearth.fr
 description: Plugin professionnel pour UbuEarth SMP avec enchantements customs, système de ranks et outils Earth
 load: POSTWORLD
-softdepend: [Towny]
+softdepend: [Towny, squaremap]
 
 commands:
   # Commande principale
@@ -62,7 +62,6 @@ commands:
     usage: /veinminer give <joueur>
     permission: ubuplugin.enchants.admin
 
-  # ✅ AJOUTÉ: Commande /toggle
   toggle:
     description: Active/désactive un enchantement
     usage: /toggle <timber|magnetic|excavator|veinminer>
@@ -132,6 +131,12 @@ commands:
     usage: /hub
     permission: ubuplugin.lobbychat.use
 
+  # Module: WebMap
+  webmap:
+    description: Gère la couche des frontières sur la web map
+    usage: /webmap <reload|update|info>
+    permission: ubuplugin.admin
+
 permissions:
   ubuplugin.*:
     description: Toutes les permissions du plugin
@@ -143,6 +148,7 @@ permissions:
       ubuplugin.earthtools.*: true
       ubuplugin.lobbychat.*: true
       ubuplugin.admin: true
+      ubuplugin.module.webmap: true
 
   ubuplugin.command.*:
     description: Toutes les commandes

@@ -82,6 +82,7 @@ modules:
     earthtools: true
     lobbychat: true
     antiafk: true
+    webmap: true
 
 # ═══════════════════════════════════════════════════════════
 #                    MODULE: ENCHANTEMENTS
@@ -939,6 +940,32 @@ antiafk:
 
   # Notifier les admins lors d'un kick
   notify-admins: true
+
+# ═══════════════════════════════════════════════════════════
+#                    MODULE: WEBMAP
+# ═══════════════════════════════════════════════════════════
+webmap:
+  # Activer le module
+  enabled: true
+
+  # Style des frontières
+  # Couleur au format hexadécimal (#RRGGBB)
+  border-color: "#FF0000"  # Rouge
+
+  # Épaisseur de la ligne (pixels)
+  border-weight: 2
+
+  # Opacité (0.0 = transparent, 1.0 = opaque)
+  border-opacity: 0.8
+
+  # Mise en cache des données
+  cache:
+    # Durée de validité du cache (jours)
+    # Les données seront re-téléchargées après ce délai
+    duration: 30
+
+    # Activer le cache
+    enabled: true
 
 # ═══════════════════════════════════════════════════════════
 #                    REMPLACEMENTS DE PAYS
