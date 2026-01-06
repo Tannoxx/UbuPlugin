@@ -11,11 +11,12 @@ import xyz.jpenilla.squaremap.api.marker.Polyline;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.CompletableFuture;
 
 /**
  * Fournisseur de couche pour afficher les frontières des pays sur Squaremap
  * Thread-safe avec chargement asynchrone
+ * <p>
+ * ✅ FIX: Ordre d'exécution corrigé pour afficher les frontières
  */
 public class BorderLayerProvider {
 
@@ -25,9 +26,9 @@ public class BorderLayerProvider {
     private SimpleLayerProvider layerProvider;
     private List<BorderData> bordersCache;
 
-    // Constantes de conversion GPS → Minecraft (depuis ton plugin)
-    private static final double LATITUDE_TO_Z = -136.653;
-    private static final double LONGITUDE_TO_X = 136.653;
+    // Constantes de conversion GPS → Minecraft
+    private static final double LATITUDE_TO_Z = -136.53333;
+    private static final double LONGITUDE_TO_X = 136.53333;
 
     // Configuration visuelle
     private Color borderColor;
@@ -43,58 +44,89 @@ public class BorderLayerProvider {
     }
 
     /**
-     * Enregistre la couche sur Squaremap
+     * ✅ FIX: Enregistre la couche sur Squaremap avec ordre d'exécution correct
      */
     public void register() {
-        module.info("Enregistrement de la couche sur Squaremap...");
+        module.info("Chargement des frontières des pays...");
 
-        // Charger les frontières en asynchrone
-        CompletableFuture.runAsync(() -> {
+        // ✅ ÉTAPE 1: Charger les données en asynchrone
+        module.plugin.getServer().getScheduler().runTaskAsynchronously(module.plugin, () -> {
             bordersCache = loader.loadBorders();
 
-            // Créer la couche une fois les données chargées
+            if (bordersCache == null || bordersCache.isEmpty()) {
+                module.error("Aucune donnée de frontière chargée !");
+                return;
+            }
+
+            module.info("Données chargées: {} pays", bordersCache.size());
+
+            // ✅ ÉTAPE 2: Créer et remplir la couche sur le thread principal
             module.plugin.getServer().getScheduler().runTask(module.plugin, () -> {
-                createLayer();
-                module.info("✓ Couche des frontières enregistrée ({} pays)", bordersCache.size());
+                createAndRegisterLayer();
             });
         });
     }
 
     /**
-     * Crée la couche Squaremap
+     * ✅ FIX: Crée la couche, ajoute TOUS les marqueurs, PUIS enregistre
      */
-    private void createLayer() {
+    private void createAndRegisterLayer() {
+        if (bordersCache == null || bordersCache.isEmpty()) {
+            module.error("Impossible de créer la couche: pas de données");
+            return;
+        }
+
         Squaremap squaremap = SquaremapProvider.get();
 
-        // Créer le layer provider
+        // ✅ ÉTAPE 1: Créer le layer provider VIDE
         layerProvider = SimpleLayerProvider.builder("Countries")
-                .defaultHidden(false) // Visible par défaut
-                .showControls(true)   // Afficher le toggle dans l'interface
-                .layerPriority(5)     // Priorité d'affichage
+                .defaultHidden(false)
+                .showControls(true)
+                .layerPriority(5)
                 .build();
 
-        // Ajouter les marqueurs pour chaque monde
+        module.info("Layer provider créé, ajout des marqueurs...");
+
+        // ✅ ÉTAPE 2: Ajouter TOUS les marqueurs AVANT d'enregistrer
+        int totalMarkers = 0;
         for (MapWorld world : squaremap.mapWorlds()) {
             if (!shouldProcessWorld(world)) continue;
 
-            addMarkersToWorld(world);
-
-            // Enregistrer le provider pour ce monde
-            world.layerRegistry().register(Key.of("countries_layer"), layerProvider);
+            int markersAdded = addMarkersToWorld(world);
+            totalMarkers += markersAdded;
         }
+
+        module.info("Total de {} marqueurs ajoutés au layer provider", totalMarkers);
+
+        // ✅ ÉTAPE 3: MAINTENANT on enregistre le provider (qui contient déjà les marqueurs)
+        for (MapWorld world : squaremap.mapWorlds()) {
+            if (!shouldProcessWorld(world)) continue;
+
+            world.layerRegistry().register(Key.of("countries_layer"), layerProvider);
+            module.info("Layer enregistré pour le monde: {}", world.identifier().asString());
+        }
+
+        module.info("✓ Couche des frontières complètement enregistrée ({} pays, {} marqueurs)",
+                bordersCache.size(), totalMarkers);
     }
 
     /**
-     * Ajoute les marqueurs de frontières à un monde
+     * ✅ FIX: Retourne le nombre de marqueurs ajoutés
      */
-    private void addMarkersToWorld(@NotNull MapWorld world) {
-        if (bordersCache == null || bordersCache.isEmpty()) return;
+    private int addMarkersToWorld(@NotNull MapWorld world) {
+        if (bordersCache == null || bordersCache.isEmpty()) {
+            module.warn("Pas de données de frontières à ajouter");
+            return 0;
+        }
 
-        module.info("Ajout des frontières pour le monde '{}'...", world.identifier().asString());
+        module.debug("Ajout des frontières pour le monde '{}'...", world.identifier().asString());
 
         int totalMarkers = 0;
+        String worldId = world.identifier().asString();
 
         for (BorderData border : bordersCache) {
+            int ringIndex = 0;
+
             for (List<double[]> ring : border.coordinates()) {
                 // Convertir les points GPS en coordonnées Minecraft
                 List<Point> minecraftPoints = new ArrayList<>();
@@ -103,9 +135,14 @@ public class BorderLayerProvider {
                     double lat = coords[0];
                     double lon = coords[1];
 
+                    // Validation des coordonnées
+                    if (lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+                        continue;
+                    }
+
                     // Conversion GPS → Minecraft
-                    int x = (int) (lon * LONGITUDE_TO_X);
-                    int z = (int) (lat * LATITUDE_TO_Z);
+                    int x = (int) Math.round(lon * LONGITUDE_TO_X);
+                    int z = (int) Math.round(lat * LATITUDE_TO_Z);
 
                     minecraftPoints.add(Point.of(x, z));
                 }
@@ -119,27 +156,45 @@ public class BorderLayerProvider {
                             .strokeColor(borderColor)
                             .strokeWeight(borderWeight)
                             .strokeOpacity(borderOpacity)
-                            .clickTooltip(border.countryName()) // Nom au survol
+                            .clickTooltip(border.countryName())
                             .build());
 
-                    // Ajouter au layer
-                    String markerId = world.identifier().asString() + "_" + border.countryName() + "_" + totalMarkers;
+                    // ✅ Créer un ID unique pour chaque segment (nettoyer TOUS les caractères invalides)
+                    String cleanWorldId = worldId.replaceAll("[^a-zA-Z0-9._-]", "_");
+                    String cleanCountryName = border.countryName().replaceAll("[^a-zA-Z0-9._-]", "_");
+
+                    String markerId = String.format("%s_%s_ring_%d",
+                            cleanWorldId,
+                            cleanCountryName,
+                            ringIndex);
+
                     layerProvider.addMarker(Key.of(markerId), polyline);
                     totalMarkers++;
                 }
+
+                ringIndex++;
             }
         }
 
         module.info("✓ {} segments de frontières ajoutés pour '{}'", totalMarkers, world.identifier().asString());
+        return totalMarkers;
     }
 
     /**
-     * Vérifie si on doit traiter ce monde
+     * Vérifie si on doit traiter ce monde (uniquement Overworld)
      */
     private boolean shouldProcessWorld(@NotNull MapWorld world) {
-        // Traiter uniquement l'Overworld (pas le Nether/End)
-        String worldName = world.identifier().asString();
-        return worldName.equals("world") || !worldName.contains("nether") && !worldName.contains("end");
+        String worldName = world.identifier().asString().toLowerCase();
+
+        // Liste blanche des mondes à traiter
+        if (worldName.equals("world")) {
+            return true;
+        }
+
+        // Liste noire: exclure nether, end, etc.
+        return !worldName.contains("nether") &&
+                !worldName.contains("end") &&
+                !worldName.contains("_the_");
     }
 
     /**
@@ -147,7 +202,13 @@ public class BorderLayerProvider {
      */
     private void loadVisualConfig() {
         String hexColor = module.getConfigManager().getString("webmap.border-color", "#FF0000");
-        borderColor = Color.decode(hexColor);
+
+        try {
+            borderColor = Color.decode(hexColor);
+        } catch (NumberFormatException e) {
+            module.warn("Couleur invalide '{}', utilisation de rouge par défaut", hexColor);
+            borderColor = Color.RED;
+        }
 
         borderWeight = module.getConfigManager().getInt("webmap.border-weight", 2);
         borderOpacity = module.getConfigManager().getDouble("webmap.border-opacity", 0.8);
@@ -160,15 +221,29 @@ public class BorderLayerProvider {
      * Désenregistre la couche
      */
     public void unregister() {
-        if (layerProvider != null) {
+        if (layerProvider == null) {
+            return;
+        }
+
+        try {
             Squaremap squaremap = SquaremapProvider.get();
+
+            // Vider tous les marqueurs
+            layerProvider.clearMarkers();
 
             // Désenregistrer de chaque monde
             for (MapWorld world : squaremap.mapWorlds()) {
-                world.layerRegistry().unregister(Key.of("countries_layer"));
+                try {
+                    world.layerRegistry().unregister(Key.of("countries_layer"));
+                } catch (Exception e) {
+                    module.debug("Erreur désenregistrement pour {}: {}",
+                            world.identifier().asString(), e.getMessage());
+                }
             }
 
             module.info("Couche des frontières désenregistrée");
+        } catch (Exception e) {
+            module.error("Erreur lors du désenregistrement", e);
         }
     }
 
@@ -184,7 +259,7 @@ public class BorderLayerProvider {
         // Recharger la config
         loadVisualConfig();
 
-        // Re-enregistrer
+        // Re-enregistrer (recharge aussi les données du cache)
         register();
     }
 
@@ -194,10 +269,11 @@ public class BorderLayerProvider {
     public void forceUpdate() {
         module.info("Mise à jour forcée des données...");
 
+        // Supprimer le cache
         loader.clearCache();
         bordersCache = null;
 
-        // Désenregistrer et re-enregistrer
+        // Désenregistrer et re-enregistrer (téléchargera à nouveau)
         unregister();
         register();
     }

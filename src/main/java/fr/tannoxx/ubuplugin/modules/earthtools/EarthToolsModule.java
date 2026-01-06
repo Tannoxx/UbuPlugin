@@ -6,7 +6,7 @@ import fr.tannoxx.ubuplugin.UbuPlugin;
 import fr.tannoxx.ubuplugin.common.module.Module;
 import fr.tannoxx.ubuplugin.common.module.ModuleManager;
 import fr.tannoxx.ubuplugin.modules.earthtools.commands.*;
-import fr.tannoxx.ubuplugin.modules.earthtools.listeners.UptimeGUIListener; // ✅ AJOUTÉ
+import fr.tannoxx.ubuplugin.modules.earthtools.listeners.UptimeGUIListener;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.Objects;
@@ -57,6 +57,9 @@ public class EarthToolsModule extends Module {
 
         Objects.requireNonNull(plugin.getCommand("countrylist")).setExecutor(new CountryListCommand(this));
         Objects.requireNonNull(plugin.getCommand("setcountrylist")).setExecutor(new SetCountryListCommand(this));
+
+        // ✅ AJOUTÉ: Commande /ec pour ouvrir l'enderchest
+        Objects.requireNonNull(plugin.getCommand("ec")).setExecutor(new ECCommand(this));
 
         info("Module EarthTools activé");
     }

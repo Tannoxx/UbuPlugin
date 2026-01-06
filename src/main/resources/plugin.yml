@@ -102,6 +102,7 @@ commands:
   tpr:
     description: Téléportation aléatoire
     usage: /tpr
+    aliases: [rtp]
     permission: ubuplugin.earthtools.tpr
 
   uptime:
@@ -118,6 +119,11 @@ commands:
     description: Modifie la liste des pays
     usage: /setcountrylist <texte>
     permission: ubuplugin.admin
+
+  ec:
+    description: Ouvre l'enderchest
+    usage: /ec
+    permission: ubuplugin.earthtools.ec
 
   # Module: Lobby Chat
   lobby:
@@ -186,7 +192,6 @@ permissions:
     description: Utiliser les enchantements customs
     default: true
 
-  # ✅ AJOUTÉ: Permission pour /toggle
   ubuplugin.enchants.toggle:
     description: Utiliser /toggle pour activer/désactiver les enchantements
     default: true
@@ -200,6 +205,7 @@ permissions:
       ubuplugin.earthtools.tpr: true
       ubuplugin.earthtools.uptime: true
       ubuplugin.earthtools.countrylist: true
+      ubuplugin.earthtools.ec: true
 
   ubuplugin.earthtools.gps:
     description: Utiliser la commande GPS
@@ -219,6 +225,10 @@ permissions:
 
   ubuplugin.earthtools.countrylist:
     description: Voir la liste des pays
+    default: true
+
+  ubuplugin.earthtools.ec:
+    description: Ouvrir son enderchest
     default: true
 
   ubuplugin.lobbychat.*:
