@@ -16,6 +16,8 @@ import java.util.UUID;
 /**
  * Commande /toggle pour activer/désactiver les enchantements
  * Gère: Timber, Magnetic, Excavator (Explosive), Veinminer
+ *
+ * ✅ FIX v2.0.4: Sauvegarde en base de données pour persistance
  */
 public record ToggleCommand(EnchantsModule module) implements CommandExecutor, TabCompleter {
 
@@ -44,7 +46,7 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
             case "timber" -> toggleTimber(player, uuid);
             case "magnetic" -> toggleMagnetic(player, uuid);
             case "excavator", "explosive" -> toggleExcavator(player, uuid);
-            case "veinminer" -> toggleVeinminer(player, uuid); // ✅ AJOUTÉ
+            case "veinminer" -> toggleVeinminer(player, uuid);
             default -> sender.sendMessage(module.getTranslationManager().getComponent(sender,
                     "<red>Type invalide ! Utilisez: timber, magnetic, excavator, ou veinminer</red>"));
         }
@@ -56,7 +58,9 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
         Boolean currentState = module.getTimberToggles().getIfPresent(uuid);
         boolean newState = currentState == null || !currentState;
 
+        // ✅ FIX: Sauvegarder dans le cache ET en DB
         module.getTimberToggles().put(uuid, newState);
+        module.getToggleManager().saveToggle(uuid, "timber", newState);
 
         if (newState) {
             module.getTranslationManager().send(player, "enchants.toggle.timber.enabled");
@@ -69,7 +73,9 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
         Boolean currentState = module.getMagneticToggles().getIfPresent(uuid);
         boolean newState = currentState == null || !currentState;
 
+        // ✅ FIX: Sauvegarder dans le cache ET en DB
         module.getMagneticToggles().put(uuid, newState);
+        module.getToggleManager().saveToggle(uuid, "magnetic", newState);
 
         if (newState) {
             module.getTranslationManager().send(player, "enchants.toggle.magnetic.enabled");
@@ -82,7 +88,9 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
         Boolean currentState = module.getExcavatorToggles().getIfPresent(uuid);
         boolean newState = currentState == null || !currentState;
 
+        // ✅ FIX: Sauvegarder dans le cache ET en DB
         module.getExcavatorToggles().put(uuid, newState);
+        module.getToggleManager().saveToggle(uuid, "excavator", newState);
 
         if (newState) {
             module.getTranslationManager().send(player, "enchants.toggle.excavator.enabled");
@@ -91,12 +99,13 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
         }
     }
 
-    // ✅ AJOUTÉ: Toggle pour Veinminer
     private void toggleVeinminer(@NotNull Player player, @NotNull UUID uuid) {
         Boolean currentState = module.getVeinminerToggles().getIfPresent(uuid);
         boolean newState = currentState == null || !currentState;
 
+        // ✅ FIX: Sauvegarder dans le cache ET en DB
         module.getVeinminerToggles().put(uuid, newState);
+        module.getToggleManager().saveToggle(uuid, "veinminer", newState);
 
         if (newState) {
             module.getTranslationManager().send(player, "enchants.toggle.veinminer.enabled");
@@ -114,7 +123,7 @@ public record ToggleCommand(EnchantsModule module) implements CommandExecutor, T
             completions.add("timber");
             completions.add("magnetic");
             completions.add("excavator");
-            completions.add("veinminer"); // ✅ AJOUTÉ
+            completions.add("veinminer");
 
             String input = args[0].toLowerCase();
             return completions.stream()

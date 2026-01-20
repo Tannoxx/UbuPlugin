@@ -4,7 +4,7 @@ import fr.tannoxx.ubuplugin.modules.enchants.EnchantsModule;
 import org.bukkit.*;
 import org.bukkit.block.Beacon;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
@@ -22,6 +22,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * - Indexation par chunk pour réduire les calculs
  * - Cache spatial pour éviter de recalculer tous les beacons
  * - Calcul dynamique du rayon de chunks à vérifier
+ * - Propagation des effets aux animaux du joueur
  */
 public class BeaconatorListener implements Runnable {
 
@@ -121,6 +122,9 @@ public class BeaconatorListener implements Runnable {
         // On ajoute 1 pour être sûr de couvrir toute la zone
         int chunkRadius = (maxRange / 16) + 1;
 
+        // Liste pour stocker les effets à appliquer
+        List<EffectToApply> effectsToApply = new ArrayList<>();
+
         // ✅ Vérifier tous les chunks dans le rayon calculé
         for (int dx = -chunkRadius; dx <= chunkRadius; dx++) {
             for (int dz = -chunkRadius; dz <= chunkRadius; dz++) {
@@ -150,15 +154,73 @@ public class BeaconatorListener implements Runnable {
                     );
 
                     if (horizontalDistance <= totalRange) {
+                        // Appliquer au joueur
                         applyEffect(player, data.primaryEffect, data.primaryLevel, beaconatorLevel);
                         applyEffect(player, data.secondaryEffect, data.secondaryLevel, beaconatorLevel);
+
+                        // Stocker les effets pour les animaux
+                        if (data.primaryEffect != null) {
+                            effectsToApply.add(new EffectToApply(data.primaryEffect, data.primaryLevel));
+                        }
+                        if (data.secondaryEffect != null) {
+                            effectsToApply.add(new EffectToApply(data.secondaryEffect, data.secondaryLevel));
+                        }
                     }
+                }
+            }
+        }
+
+        // ✅ NOUVEAU: Appliquer les effets aux animaux du joueur
+        if (!effectsToApply.isEmpty()) {
+            applyEffectsToPets(player, effectsToApply, beaconatorLevel, maxRange);
+        }
+    }
+
+    /**
+     * ✅ NOUVEAU: Applique les effets aux animaux apprivoisés du joueur
+     */
+    private void applyEffectsToPets(@NotNull Player player, @NotNull List<EffectToApply> effects,
+                                    int beaconatorLevel, int searchRange) {
+        Location playerLoc = player.getLocation();
+        World world = player.getWorld();
+
+        // Chercher les entités dans un rayon raisonnable autour du joueur
+        Collection<Entity> nearbyEntities = world.getNearbyEntities(playerLoc, searchRange, searchRange, searchRange);
+
+        for (Entity entity : nearbyEntities) {
+            if (isPlayerPet(entity, player)) {
+                LivingEntity pet = (LivingEntity) entity;
+
+                // Appliquer tous les effets collectés
+                for (EffectToApply effect : effects) {
+                    applyEffect(pet, effect.type, effect.level, beaconatorLevel);
                 }
             }
         }
     }
 
-    private void applyEffect(@NotNull Player player, @Nullable PotionEffectType effectType,
+    /**
+     * ✅ NOUVEAU: Vérifie si l'entité est un animal apprivoisé appartenant au joueur
+     */
+    private boolean isPlayerPet(@NotNull Entity entity, @NotNull Player player) {
+        // Animaux apprivoisables (Wolf, Cat, Parrot)
+        if (entity instanceof Tameable tameable) {
+            return tameable.isTamed() &&
+                    tameable.getOwner() != null &&
+                    tameable.getOwner().getUniqueId().equals(player.getUniqueId());
+        }
+
+        // Chevaux et variantes (Horse, Donkey, Mule, SkeletonHorse, ZombieHorse, Llama, TraderLlama)
+        if (entity instanceof AbstractHorse horse) {
+            return horse.isTamed() &&
+                    horse.getOwner() != null &&
+                    horse.getOwner().getUniqueId().equals(player.getUniqueId());
+        }
+
+        return false;
+    }
+
+    private void applyEffect(@NotNull LivingEntity livingEntity, @Nullable PotionEffectType effectType,
                              int baseLevel, int beaconatorLevel) {
         if (effectType == null) return;
 
@@ -166,7 +228,7 @@ public class BeaconatorListener implements Runnable {
                 .getBoolean("enchants.beaconator.level-4-boost", true);
         int finalLevel = (beaconatorLevel == 4 && level4Boost) ? baseLevel + 1 : baseLevel;
 
-        player.addPotionEffect(new PotionEffect(
+        livingEntity.addPotionEffect(new PotionEffect(
                 effectType, 220, finalLevel - 1, true, true, true
         ));
     }
@@ -234,4 +296,9 @@ public class BeaconatorListener implements Runnable {
             int primaryLevel,
             int secondaryLevel
     ) {}
+
+    /**
+     * ✅ NOUVEAU: Record pour stocker les effets à appliquer
+     */
+    private record EffectToApply(PotionEffectType type, int level) {}
 }

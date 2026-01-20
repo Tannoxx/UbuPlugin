@@ -9,6 +9,7 @@ import fr.tannoxx.ubuplugin.modules.enchants.commands.*;
 import fr.tannoxx.ubuplugin.modules.enchants.listeners.*;
 import org.bukkit.NamespacedKey;
 import org.bukkit.enchantments.Enchantment;
+import org.bukkit.event.HandlerList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -21,7 +22,7 @@ import java.util.concurrent.TimeUnit;
  * Thread-safe avec caches Caffeine
  *
  * @author Tannoxx
- * @version 2.0.2
+ * @version 2.0.4
  */
 public class EnchantsModule extends Module {
 
@@ -34,7 +35,7 @@ public class EnchantsModule extends Module {
     private NamespacedKey soulboundKey;
     private NamespacedKey autoRepairKey;
     private NamespacedKey beaconatorKey;
-    private NamespacedKey veinminerKey; // ✅ AJOUTÉ
+    private NamespacedKey veinminerKey;
 
     // Enchantements chargés
     private volatile Enchantment timberEnchantment;
@@ -45,18 +46,27 @@ public class EnchantsModule extends Module {
     private volatile Enchantment soulboundEnchantment;
     private volatile Enchantment autoRepairEnchantment;
     private volatile Enchantment beaconatorEnchantment;
-    private volatile Enchantment veinminerEnchantment; // ✅ AJOUTÉ
+    private volatile Enchantment veinminerEnchantment;
 
     // Caches thread-safe
     private Cache<UUID, Long> timberCooldowns;
     private Cache<UUID, Long> dashCooldowns;
-    private Cache<UUID, Long> veinminerCooldowns; // ✅ AJOUTÉ
+    private Cache<UUID, Long> veinminerCooldowns;
     private Cache<UUID, Boolean> magneticToggles;
     private Cache<UUID, Boolean> timberToggles;
     private Cache<UUID, Boolean> excavatorToggles;
-    private Cache<UUID, Boolean> veinminerToggles; // ✅ AJOUTÉ
+    private Cache<UUID, Boolean> veinminerToggles;
 
+    // ✅ NOUVEAU: Gestionnaire de persistance
+    private EnchantToggleManager toggleManager;
+
+    // ✅ FIX RELOAD: Référence aux listeners pour cleanup
     private BeaconatorListener beaconatorListener;
+    private AutoRepairListener autoRepairListener;
+
+    // ✅ FIX RELOAD: IDs des tasks pour pouvoir les annuler
+    private int autoRepairTaskId = -1;
+    private int beaconatorTaskId = -1;
 
     public EnchantsModule(@NotNull UbuPlugin plugin, @NotNull ModuleManager moduleManager) {
         super(plugin, moduleManager);
@@ -75,27 +85,19 @@ public class EnchantsModule extends Module {
         soulboundKey = new NamespacedKey(plugin, "soulbound");
         autoRepairKey = new NamespacedKey(plugin, "autorepair");
         beaconatorKey = new NamespacedKey(plugin, "beaconator");
-        veinminerKey = new NamespacedKey(plugin, "veinminer"); // ✅ AJOUTÉ
+        veinminerKey = new NamespacedKey(plugin, "veinminer");
     }
 
     @Override
     public void onEnable() {
-        // 1. Initialiser les caches AVANT tout
+        // 1. Initialiser les caches
         initializeCaches();
 
-        // 2. Charger les enchantements de manière SYNCHRONE
-        loadEnchantmentsSync();
+        // 2. ✅ NOUVEAU: Initialiser le gestionnaire de toggles
+        toggleManager = new EnchantToggleManager(getDatabaseManager());
 
-        // 3. Vérifier que les enchantements sont chargés
-        if (timberEnchantment == null) {
-            warn("✗ Timber non trouvé - Le datapack est-il installé ?");
-        }
-        if (magneticEnchantment == null) {
-            warn("✗ Magnetic non trouvé - Le datapack est-il installé ?");
-        }
-        if (veinminerEnchantment == null) {
-            warn("✗ Veinminer non trouvé - Le datapack est-il installé ?");
-        }
+        // 3. Charger les enchantements
+        loadEnchantmentsSync();
 
         // 4. Enregistrer les listeners
         registerListeners();
@@ -106,7 +108,68 @@ public class EnchantsModule extends Module {
         // 6. Démarrer les tasks récurrentes
         startTasks();
 
-        info("Module Enchantements activé (9 enchantements)"); // ✅ 8 -> 9
+        info("Module Enchantements activé (9 enchantements)");
+    }
+
+    @Override
+    public void onDisable() {
+        // ✅ FIX RELOAD: Annuler les tasks d'abord
+        stopTasks();
+
+        // ✅ FIX RELOAD: Unregister tous les listeners
+        HandlerList.unregisterAll(this.plugin);
+
+        // Nettoyer les caches
+        if (timberCooldowns != null) timberCooldowns.invalidateAll();
+        if (dashCooldowns != null) dashCooldowns.invalidateAll();
+        if (veinminerCooldowns != null) veinminerCooldowns.invalidateAll();
+        if (magneticToggles != null) magneticToggles.invalidateAll();
+        if (timberToggles != null) timberToggles.invalidateAll();
+        if (excavatorToggles != null) excavatorToggles.invalidateAll();
+        if (veinminerToggles != null) veinminerToggles.invalidateAll();
+
+        // Cleanup des listeners
+        if (beaconatorListener != null) beaconatorListener.cleanup();
+
+        info("Module Enchantements désactivé");
+    }
+
+    /**
+     * ✅ FIX RELOAD: Arrête proprement toutes les tasks
+     */
+    private void stopTasks() {
+        if (autoRepairTaskId != -1) {
+            plugin.getServer().getScheduler().cancelTask(autoRepairTaskId);
+            autoRepairTaskId = -1;
+            debug("Task Auto-Repair annulée");
+        }
+
+        if (beaconatorTaskId != -1) {
+            plugin.getServer().getScheduler().cancelTask(beaconatorTaskId);
+            beaconatorTaskId = -1;
+            debug("Task Beaconator annulée");
+        }
+    }
+
+    /**
+     * ✅ FIX RELOAD: Override de reload pour gérer proprement
+     */
+    @Override
+    public void reload() {
+        info("Rechargement du module Enchantements...");
+
+        // 1. Arrêter les tasks
+        stopTasks();
+
+        // 2. Clear les caches (mais pas les toggles - ils sont en DB)
+        if (timberCooldowns != null) timberCooldowns.invalidateAll();
+        if (dashCooldowns != null) dashCooldowns.invalidateAll();
+        if (veinminerCooldowns != null) veinminerCooldowns.invalidateAll();
+
+        // 3. Redémarrer les tasks avec nouvelle config
+        startTasks();
+
+        info("Module Enchantements rechargé");
     }
 
     private void loadEnchantmentsSync() {
@@ -118,7 +181,7 @@ public class EnchantsModule extends Module {
         soulboundEnchantment = Enchantment.getByKey(soulboundKey);
         autoRepairEnchantment = Enchantment.getByKey(autoRepairKey);
         beaconatorEnchantment = Enchantment.getByKey(beaconatorKey);
-        veinminerEnchantment = Enchantment.getByKey(veinminerKey); // ✅ AJOUTÉ
+        veinminerEnchantment = Enchantment.getByKey(veinminerKey);
 
         if (timberEnchantment != null) info("✓ Timber chargé");
         if (magneticEnchantment != null) info("✓ Magnetic chargé");
@@ -128,27 +191,7 @@ public class EnchantsModule extends Module {
         if (soulboundEnchantment != null) info("✓ Soulbound chargé");
         if (autoRepairEnchantment != null) info("✓ Auto-Repair chargé");
         if (beaconatorEnchantment != null) info("✓ Beaconator chargé");
-        if (veinminerEnchantment != null) info("✓ Veinminer chargé"); // ✅ AJOUTÉ
-    }
-
-    @Override
-    public void onDisable() {
-        // Arrêter les tasks
-        plugin.getServer().getScheduler().cancelTasks(plugin);
-
-        // Nettoyer les caches
-        if (timberCooldowns != null) timberCooldowns.invalidateAll();
-        if (dashCooldowns != null) dashCooldowns.invalidateAll();
-        if (veinminerCooldowns != null) veinminerCooldowns.invalidateAll(); // ✅ AJOUTÉ
-        if (magneticToggles != null) magneticToggles.invalidateAll();
-        if (timberToggles != null) timberToggles.invalidateAll();
-        if (excavatorToggles != null) excavatorToggles.invalidateAll();
-        if (veinminerToggles != null) veinminerToggles.invalidateAll(); // ✅ AJOUTÉ
-
-        // Cleanup des listeners
-        if (beaconatorListener != null) beaconatorListener.cleanup();
-
-        info("Module Enchantements désactivé");
+        if (veinminerEnchantment != null) info("✓ Veinminer chargé");
     }
 
     private void initializeCaches() {
@@ -164,7 +207,6 @@ public class EnchantsModule extends Module {
                 .maximumSize(200)
                 .build();
 
-        // ✅ AJOUTÉ: Cache pour Veinminer cooldowns
         veinminerCooldowns = Caffeine.newBuilder()
                 .expireAfterWrite(cooldownTTL, TimeUnit.SECONDS)
                 .maximumSize(200)
@@ -182,54 +224,50 @@ public class EnchantsModule extends Module {
                 .maximumSize(500)
                 .build();
 
-        // ✅ AJOUTÉ: Cache pour Veinminer toggle
         veinminerToggles = Caffeine.newBuilder()
                 .maximumSize(500)
                 .build();
     }
 
     private void registerListeners() {
-        // Timber
         if (getConfigManager().getBoolean("enchants.timber.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new TimberListener(this), plugin);
         }
 
-        // Magnetic
         if (getConfigManager().getBoolean("enchants.magnetic.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new MagneticListener(this), plugin);
         }
 
-        // Experience
         if (getConfigManager().getBoolean("enchants.experience.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new ExperienceListener(this), plugin);
         }
 
-        // Explosive
         if (getConfigManager().getBoolean("enchants.explosive.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new ExplosiveListener(this), plugin);
         }
 
-        // Dash
         if (getConfigManager().getBoolean("enchants.dash.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new DashListener(this), plugin);
         }
 
-        // Soulbound
         if (getConfigManager().getBoolean("enchants.soulbound.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new SoulboundListener(this), plugin);
         }
 
-        // ✅ AJOUTÉ: Veinminer
         if (getConfigManager().getBoolean("enchants.veinminer.enabled", true)) {
             plugin.getServer().getPluginManager().registerEvents(
                     new VeinminerListener(this), plugin);
         }
+
+        // ✅ NOUVEAU: Listener de connexion/déconnexion pour les toggles
+        plugin.getServer().getPluginManager().registerEvents(
+                new EnchantToggleListener(this), plugin);
     }
 
     private void registerCommands() {
@@ -241,9 +279,8 @@ public class EnchantsModule extends Module {
         Objects.requireNonNull(plugin.getCommand("soulbound")).setExecutor(new SoulboundCommand(this));
         Objects.requireNonNull(plugin.getCommand("autorepair")).setExecutor(new AutoRepairCommand(this));
         Objects.requireNonNull(plugin.getCommand("beaconator")).setExecutor(new BeaconatorCommand(this));
-        Objects.requireNonNull(plugin.getCommand("veinminer")).setExecutor(new VeinminerCommand(this)); // ✅ AJOUTÉ
+        Objects.requireNonNull(plugin.getCommand("veinminer")).setExecutor(new VeinminerCommand(this));
 
-        // Commande /toggle
         ToggleCommand toggleCommand = new ToggleCommand(this);
         Objects.requireNonNull(plugin.getCommand("toggle")).setExecutor(toggleCommand);
         Objects.requireNonNull(plugin.getCommand("toggle")).setTabCompleter(toggleCommand);
@@ -253,15 +290,21 @@ public class EnchantsModule extends Module {
         // Auto-Repair task
         if (getConfigManager().getBoolean("enchants.autorepair.enabled", true)) {
             int interval = getConfigManager().getInt("enchants.autorepair.repair-interval", 10) * 20;
-            AutoRepairListener autoRepairListener = new AutoRepairListener(this);
-            plugin.getServer().getScheduler().runTaskTimer(plugin, autoRepairListener, interval, interval);
+            autoRepairListener = new AutoRepairListener(this);
+            autoRepairTaskId = plugin.getServer().getScheduler()
+                    .runTaskTimer(plugin, autoRepairListener, interval, interval)
+                    .getTaskId();
+            debug("Task Auto-Repair démarrée (ID: {})", autoRepairTaskId);
         }
 
         // Beaconator task
         if (getConfigManager().getBoolean("enchants.beaconator.enabled", true)) {
             int interval = getConfigManager().getInt("enchants.beaconator.check-interval", 5) * 20;
             beaconatorListener = new BeaconatorListener(this);
-            plugin.getServer().getScheduler().runTaskTimer(plugin, beaconatorListener, interval, interval);
+            beaconatorTaskId = plugin.getServer().getScheduler()
+                    .runTaskTimer(plugin, beaconatorListener, interval, interval)
+                    .getTaskId();
+            debug("Task Beaconator démarrée (ID: {})", beaconatorTaskId);
         }
     }
 
@@ -271,7 +314,7 @@ public class EnchantsModule extends Module {
         return "Enchants";
     }
 
-    // Getters thread-safe
+    // Getters
     @Nullable
     public Enchantment getTimberEnchantment() { return timberEnchantment; }
 
@@ -297,7 +340,7 @@ public class EnchantsModule extends Module {
     public Enchantment getBeaconatorEnchantment() { return beaconatorEnchantment; }
 
     @Nullable
-    public Enchantment getVeinminerEnchantment() { return veinminerEnchantment; } // ✅ AJOUTÉ
+    public Enchantment getVeinminerEnchantment() { return veinminerEnchantment; }
 
     @NotNull
     public Cache<UUID, Long> getTimberCooldowns() { return timberCooldowns; }
@@ -306,7 +349,7 @@ public class EnchantsModule extends Module {
     public Cache<UUID, Long> getDashCooldowns() { return dashCooldowns; }
 
     @NotNull
-    public Cache<UUID, Long> getVeinminerCooldowns() { return veinminerCooldowns; } // ✅ AJOUTÉ
+    public Cache<UUID, Long> getVeinminerCooldowns() { return veinminerCooldowns; }
 
     @NotNull
     public Cache<UUID, Boolean> getMagneticToggles() { return magneticToggles; }
@@ -318,5 +361,9 @@ public class EnchantsModule extends Module {
     public Cache<UUID, Boolean> getExcavatorToggles() { return excavatorToggles; }
 
     @NotNull
-    public Cache<UUID, Boolean> getVeinminerToggles() { return veinminerToggles; } // ✅ AJOUTÉ
+    public Cache<UUID, Boolean> getVeinminerToggles() { return veinminerToggles; }
+
+    // ✅ NOUVEAU: Getter pour le toggle manager
+    @NotNull
+    public EnchantToggleManager getToggleManager() { return toggleManager; }
 }
