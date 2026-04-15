@@ -138,26 +138,28 @@ public class DashListener implements Listener {
     private void applyLevel3Effects(@NotNull Player player) {
         UUID uuid = player.getUniqueId();
 
+        int invulnerabilityTicks = module.getConfigManager()
+                .getInt("enchants.dash.invulnerability-duration", 30);
+
         invulnerablePlayers.add(uuid);
 
         // Effet de résistance
         player.addPotionEffect(new PotionEffect(
                 PotionEffectType.RESISTANCE,
-                30, // 1.5 secondes
+                invulnerabilityTicks,
                 4,  // Niveau 5
                 false,
                 false,
                 true
         ));
 
-        // ✅ FIX: Trail de particules complètement supprimé
-        // Juste un timer pour retirer l'invulnérabilité
+        // Timer pour retirer l'invulnérabilité
         new BukkitRunnable() {
             @Override
             public void run() {
                 invulnerablePlayers.remove(uuid);
             }
-        }.runTaskLater(module.plugin, 30L); // 1.5 secondes
+        }.runTaskLater(module.plugin, invulnerabilityTicks);
     }
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
