@@ -933,7 +933,7 @@ antiafk:
   afk-time: 300
 
   # Temps avant avertissement (secondes)
-  warn-time: 295
+  warn-time: 270
 
   # Intervalle de vérification (secondes)
   check-interval: 20
